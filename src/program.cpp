@@ -3,7 +3,7 @@
 #include <ros/ros.h>
 #include "bags.h"
 #include "live.h"
-
+#include <fstream>
 void printUsage(const char* progName);
 
 int main (int argc, char** argv)
@@ -27,6 +27,14 @@ int main (int argc, char** argv)
         if(bh.backgroundFileName.substr(bh.backgroundFileName.find_last_of(".") + 1) != "bag")
         {
             ROS_ERROR("Unable to convert none .bag file");
+            printUsage(argv[0]);
+            return 0;
+        }
+        char realFile[200];
+        strcpy(realFile, bh.backgroundFileName.c_str());
+        std::ifstream my_file(realFile);
+        if (!my_file) {
+            ROS_ERROR("Cannot Locate %s", realFile);
             printUsage(argv[0]);
             return 0;
         }

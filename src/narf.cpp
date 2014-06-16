@@ -52,9 +52,18 @@ narfStruct narf(const sensor_msgs::PointCloud2::Ptr p)
     return ns;
 }
 
-void extractPointXYZ(const sensor_msgs::PointCloud2::Ptr p)
+void extractPointXYZ(const sensor_msgs::PointCloud2::Ptr p, std::vector<cv::KeyPoint> x)
 {
-    pcl::PointCloud<pcl::PointXYZ> point_cloud;
-    pcl::fromROSMsg (*p, point_cloud);
+ /*   std::cout << "why am I never firing?" << std::endl;
+    pcl::PointCloud< pcl::PointXYZ > PointCloudXYZ;
 
+    pcl::fromROSMsg(*p,PointCloudXYZ);
+    std::cout << "width is " << PointCloudXYZ.width << std::endl;
+    std::cout << "height is " << PointCloudXYZ.height << std::endl;
+    int cloudsize = (PointCloudXYZ.width) * (PointCloudXYZ.height);
+    for (int i=0; i< cloudsize; i++)
+    {
+        //std::cout << "(x,y,z) = " << PointCloudXYZ.points[i] << std::endl;
+    }
+    */
 }

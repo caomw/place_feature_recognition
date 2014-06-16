@@ -20,6 +20,11 @@
 #include <sensor_msgs/PointCloud2.h>
 #include <pcl_conversions/pcl_conversions.h>
 
+#include "opencv2/core/core.hpp"
+#include "opencv2/features2d/features2d.hpp"
+#include "opencv2/highgui/highgui.hpp"
+#include "opencv2/nonfree/features2d.hpp"
+
 struct narfStruct {
   pcl::PointCloud<pcl::Narf36> narf_descriptors;
   pcl::RangeImage rangeImg;
@@ -35,5 +40,5 @@ public:
 };
 
 narfStruct narf(const sensor_msgs::PointCloud2::Ptr msg);
-void extractPointXYZ(const sensor_msgs::PointCloud2::Ptr);
+void extractPointXYZ(const sensor_msgs::PointCloud2::Ptr, std::vector<cv::KeyPoint>);
 #endif

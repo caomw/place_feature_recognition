@@ -23,8 +23,16 @@
 
 struct surfStruct {
     std::vector<cv::KeyPoint> keypoints;
-    cv::Mat descriptors;
+    cv::Mat     descriptors;
 };
+
+struct surfWords {
+    std::vector<cv::KeyPoint> keypoints;
+    cv::Mat     rawDescriptors;
+    cv::Mat     filteredDescriptors;
+    std::string name;
+};
+
 
 sensor_msgs::Image conversions(cv::Mat mat);
 cv::Mat conversions(const sensor_msgs::ImageConstPtr&);
@@ -42,4 +50,5 @@ surfStruct surf(const sensor_msgs::ImageConstPtr&, int);
 cv::Mat surfConverter();
 
 void DMatch(surfStruct, cv::Mat, surfStruct, cv::Mat);
+cv::Mat kmeans(cv::Mat);
 #endif
