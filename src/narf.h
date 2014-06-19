@@ -35,7 +35,7 @@ class narfClass : public feature
 public:
   virtual void extractFeatures()
   {
-  	std::cout << "I should be derived base class.";
+    std::cout << "I should be derived base class.";
   }
 };
 

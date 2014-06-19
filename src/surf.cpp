@@ -25,6 +25,7 @@ cv::Mat conversions(const sensor_msgs::ImageConstPtr& image)
     {
         cv_ptr = cv_bridge::toCvCopy(image,sensor_msgs::image_encodings::BGR8);
     }
+
     catch (cv_bridge::Exception& e)
     {
         ROS_ERROR("cv_bridge exception returning Null image: %s",  e.what());
@@ -54,7 +55,7 @@ surfStruct surf(const sensor_msgs::ImageConstPtr& msg, int hessian)
 	//-- Step 2: Calculate descriptors (feature vectors)
 	cv::SurfDescriptorExtractor extractor;
     extractor.compute( image, surfObj.keypoints, surfObj.descriptors);
-    std::cout << "Surf:" <<surfObj.descriptors.size() << "\t";
+    std::cout << "Surf:" <<surfObj.descriptors.size() << "\n";
 
     if(s.height > 1)
     {
@@ -64,6 +65,8 @@ surfStruct surf(const sensor_msgs::ImageConstPtr& msg, int hessian)
     }
     return surfObj;
 }
+
+
 
 
 void DMatch(surfStruct s1, cv::Mat i1, surfStruct s2, cv::Mat i2)

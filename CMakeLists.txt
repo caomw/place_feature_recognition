@@ -135,9 +135,20 @@ include_directories(
 # )
 
 ## Declare a cpp executable
-add_executable(featureExtractor2 
+add_executable(featureExtractor 
     src/program.cpp
     src/bags.cpp
+    src/live.cpp
+    src/visualise.cpp
+    src/kmeans.cpp
+    src/features.cpp
+        src/surf.cpp    #2D
+        src/narf.cpp    #3D
+        src/shot.cpp    #3D
+)
+
+add_executable(comparison 
+    src/comparison.cpp
     src/live.cpp
     src/visualise.cpp
     src/kmeans.cpp
@@ -152,7 +163,13 @@ add_executable(featureExtractor2
 # add_dependencies(narf_features_node narf_features_generate_messages_cpp)
 
 ## Specify libraries to link a library or executable target against
-target_link_libraries(featureExtractor2
+target_link_libraries(featureExtractor
+   ${catkin_LIBRARIES}
+   ${PCL_LIBRARIES}
+   ${OpenCV_LIBRARIES}
+)
+
+target_link_libraries(comparison
    ${catkin_LIBRARIES}
    ${PCL_LIBRARIES}
    ${OpenCV_LIBRARIES}
