@@ -1,91 +1,48 @@
+
 #include <iostream>
 #include <math.h>
 #include <pcl/console/parse.h>
 #include <ros/ros.h>
 #include <fstream>
-#include "surf.h"
-#include "narf.h"
 #include "visualise.h"
 
+#include "3Dsurf.h"
 #include <rosbag/bag.h>
 #include <rosbag/view.h>
 #include <boost/foreach.hpp>
 
-void printUsage(const char*);
-bool queryFile(std::string, char*);
-void extractDepth(sensor_msgs::PointCloud2::Ptr, int, int);
+#include <message_filters/subscriber.h>
+#include <message_filters/time_synchronizer.h>
+#include <sensor_msgs/Image.h>
+#include <sensor_msgs/CameraInfo.h>
 
-struct myDescriptor
-{
-    float x, y, z;
-    float descriptor[64]; // if cv::mat->type enums to 5 float (32f)
-};
-// in line to follow convension // ?
-inline std::ostream& operator << (std::ostream& os, const myDescriptor& p)
-{
-    // to do
-   /*os << p.x<<","<<p.y<<","<<p.z<<" - "<<p.roll*360.0/M_PI<<"deg,"<<p.pitch*360.0/M_PI<<"deg,"<<p.yaw*360.0/M_PI<<"deg - ";
-   for (int i = 0; i < 36; ++i)
-     os << (i == 0 ? "(" : "") << p.descriptor[i] << (i < 35 ? ", " : ")");
-   return (os);
-   */
-    //http://docs.pointclouds.org/1.0.0/point__types_8hpp_source.html  << for moar
-}
-
-pcl::PointCloud<myDescriptor> depthSurf(const sensor_msgs::ImageConstPtr& msg, const sensor_msgs::PointCloud2::Ptr p, int hessian)
-{
-    pcl::PointCloud<myDescriptor> depthFeatures;
-
-    cv::Mat image(conversions(msg));
-    surfStruct surfObj;
-
-    if(msg->encoding != "bgr8" ){
-        ROS_ERROR("Unsupported image encoding:");
-        return depthFeatures;  // Return Null image
-    }
-
-    cv::Size s = image.size();
-    if(s.height < 1)return depthFeatures;
-
-    cv::SurfFeatureDetector detector(hessian);
-
-    detector.detect(image, surfObj.keypoints);
-
-    //-- Step 2: Calculate descriptors (feature vectors)
-    cv::SurfDescriptorExtractor extractor;
-    extractor.compute( image, surfObj.keypoints, surfObj.descriptors);
-    std::cout << "Surf:" <<surfObj.descriptors.size() << "\n";
-
-    s = surfObj.descriptors.size();
-    if(s.height < 1)return depthFeatures;
-
-    //-- Step 3: Start Conversion to 3D
-    pcl::PointCloud< pcl::PointXYZ > PointCloudXYZ;
-    pcl::fromROSMsg(*p,PointCloudXYZ);
-
-    for(int i = 0; i < s.height; i++)
-    {
-        myDescriptor temp;
-
-        temp.x = surfObj.keypoints[i].pt.x;
-        temp.y = surfObj.keypoints[i].pt.y;
-        temp.z = PointCloudXYZ.points[round(surfObj.keypoints[i].pt.y)*PointCloudXYZ.height + round(surfObj.keypoints[i].pt.x)].z;
-        for(int j = 0; j < 64; j ++){
-            temp.descriptor[j] = surfObj.descriptors.at<float>(i,j);
-        }
-        depthFeatures.push_back(temp);
-    }
+using namespace sensor_msgs;
 
 
-    std::cout << surfObj.descriptors.size() << "\t hello";
-    return depthFeatures;
+void callback (const sensor_msgs::ImageConstPtr& input_image, const sensor_msgs::ImageConstPtr& input_depth) {
+//opencv stuff
 }
 
 
 int main (int argc, char** argv)
 {
-    ros::init(argc, argv, "bags");
+    ros::init(argc, argv, "hole_detection");
 
+    ros::NodeHandle nh;
+
+    cv::namedWindow("matches");
+    cv::namedWindow("depth");
+
+    message_filters::Subscriber<sensor_msgs::Image> image_sub(nh, "camera/rgb/image_rect_color", 1);
+    message_filters::Subscriber<sensor_msgs::Image> depth_sub(nh, "camera/depth_registered/image_rect", 1);
+
+    message_filters::TimeSynchronizer<sensor_msgs::Image, sensor_msgs::Image> sync(image_sub, depth_sub, 10);
+    sync.registerCallback(boost::bind(&callback, _1, _2));
+
+    ros::spin ();
+    return 0;
+
+/*
     if(pcl::console::find_argument (argc, argv, "-h") >= 0 || argc < 3){
         printUsage(argv[0]);
         return 0;
@@ -115,11 +72,6 @@ int main (int argc, char** argv)
     rosbag::View viewB(bagBack, rosbag::TopicQuery(topics));
     rosbag::View viewF(bagFore, rosbag::TopicQuery(topics));
 
-    std::vector <surfStruct> foreFeatures;
-    std::vector <surfStruct> backFeatures;
-
-    pcl::PointCloud<myDescriptor> worked;
-
     int imCount= 0;
     int pCount = 0;
 
@@ -128,7 +80,6 @@ int main (int argc, char** argv)
 
     //sensor_msgs::Image::Ptr         i;
     //sensor_msgs::PointCloud2::Ptr   p;
-    visualisation visualiser;
 
     BOOST_FOREACH(rosbag::MessageInstance const m, viewB){
         try { // Handle instantiation breaks
@@ -138,9 +89,7 @@ int main (int argc, char** argv)
             if(i != NULL)
             {
                 lastI = i;
-                foreFeatures.push_back(surf(i, 1000));   // get Surf Features
                 imCount++;
-                visualiser.visualise(foreFeatures[0].keypoints, conversions(i));
                 cv::waitKey(10);
             }
             if(p != NULL)
@@ -150,10 +99,9 @@ int main (int argc, char** argv)
             }
             if(imCount == pCount && imCount + pCount > 0)
             {
-                pcl::PointCloud<myDescriptor> dimensionalSurf = depthSurf(lastI,lastP,1000);
+                pcl::PointCloud<myDescriptor> dimensionalSurf = depthSurf(lastI, lastP, 1000);
                 std::cout << dimensionalSurf.size() << std::endl;
 
-              //  extractDepth(lastP, 0, 0);
                 cv::waitKey(10);
             }
         }
@@ -168,8 +116,7 @@ int main (int argc, char** argv)
             sensor_msgs::Image::Ptr 		i = m.instantiate<sensor_msgs::Image>();
             if(i != NULL)
             {
-                backFeatures.push_back(surf(i, 1000));   // get Surf Features
-                std::cout << backFeatures[0].descriptors.type() << "\t\n";
+                // copy prev code
             }
         }
         catch (const rosbag::BagFormatException& e)
@@ -181,8 +128,9 @@ int main (int argc, char** argv)
 
     bagFore.close();
     bagBack.close();
+    */
 }
-
+/*
 bool queryFile(std::string fileName, char * progName)
 {
     if(fileName.substr(fileName.find_last_of(".") + 1) != "bag")
@@ -205,13 +153,13 @@ bool queryFile(std::string fileName, char * progName)
 
 void extractDepth(const sensor_msgs::PointCloud2::Ptr p, int x, int y)
 {
-  /*  pcl::PointCloud<pcl::PointXYZ> point_cloud;
-    pcl::fromROSMsg (*p, point_cloud);
+  //  pcl::PointCloud<pcl::PointXYZ> point_cloud;
+  //  pcl::fromROSMsg (*p, point_cloud);
 
-    std::cout << (float)p->data[0] << ", " << (float)p->data[4] << ", " << (float)p->data[8] << ", " << std::endl;
+    //std::cout << (float)p->data[0] << ", " << (float)p->data[4] << ", " << (float)p->data[8] << ", " << std::endl;
  //   std::cout << *reinterpret_cast<const float*>(p->data[0]) << " | " << *reinterpret_cast<const float*>(p->data[4]) << " | " << *reinterpret_cast<const float*>(p->data[8]) << std::endl;
     //	cout << *reinterpret_cast<const float*>(p->data[168]) << " | " << *reinterpret_cast<const float*>(p->data[172]) << " | " << *reinterpret_cast<const float*>(p->data[176]) << endl;
-    */
+
     pcl::PointCloud< pcl::PointXYZ > PointCloudXYZ;
 
     pcl::fromROSMsg(*p,PointCloudXYZ);
@@ -234,3 +182,5 @@ void printUsage(const char* progName)
     << "-h This Help\n"
     << "--------------------------------------------------\n\n";
 }
+
+*/

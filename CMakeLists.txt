@@ -149,13 +149,9 @@ add_executable(featureExtractor
 
 add_executable(comparison 
     src/comparison.cpp
-    src/live.cpp
     src/visualise.cpp
-    src/kmeans.cpp
     src/features.cpp
-        src/surf.cpp    #2D
-        src/narf.cpp    #3D
-        src/shot.cpp    #3D
+        src/3Dsurf.cpp	
 )
 
 ## Add cmake target dependencies of the executable/library
