@@ -1,4 +1,7 @@
 #include "3Dsurf.h"
+#include "visualise.h"
+#include <stdlib.h>
+#include <math.h>
 
 sensor_msgs::Image conversions(cv::Mat mat)
 {
@@ -15,17 +18,22 @@ sensor_msgs::Image conversions(cv::Mat mat)
 
     return sensorImg;
 }
-
+visualisation temp;
 cv::Mat conversions(const sensor_msgs::ImageConstPtr& image)
 {
     cv::Mat x;
     cv_bridge::CvImagePtr cv_ptr;
     try
     {
-        cv_ptr = cv_bridge::toCvCopy(image,sensor_msgs::image_encodings::BGR8);
+        if(image->encoding == "bgr8" ){
+            cv_ptr = cv_bridge::toCvCopy(image,sensor_msgs::image_encodings::BGR8);
+        }
+        if(image->encoding == "32FC1"){
+            cv_ptr = cv_bridge::toCvCopy(image,sensor_msgs::image_encodings::TYPE_32FC1);
+        }
     }
 
-   catch (cv_bridge::Exception& e)
+    catch (cv_bridge::Exception& e)
     {
         ROS_ERROR("cv_bridge exception returning Null image: %s",  e.what());
         return x;
@@ -33,8 +41,24 @@ cv::Mat conversions(const sensor_msgs::ImageConstPtr& image)
     return cv_ptr->image;
 }
 
-pcl::PointCloud<myDescriptor> depthSurf(const sensor_msgs::ImageConstPtr& msg, const sensor_msgs::PointCloud2::Ptr p, int hessian)
+pcl::PointCloud<myDescriptor> depthSurf(const sensor_msgs::ImageConstPtr& msg, const sensor_msgs::PointCloud2ConstPtr &depth, int hessian)
 {
+    // Convert sensor message
+    pcl::PointCloud< pcl::PointXYZ > depthPoints;
+    pcl::fromROSMsg(*depth,depthPoints);
+
+
+/*
+    std::cout << "\n______________\n";
+    for(int y = 0; y < 5; y++)
+    {
+        for(int x = 0; x < 640; x ++)
+        {
+
+
+        }
+    }
+*/
     pcl::PointCloud<myDescriptor> depthFeatures;
 
     cv::Mat image(conversions(msg));
@@ -55,28 +79,45 @@ pcl::PointCloud<myDescriptor> depthSurf(const sensor_msgs::ImageConstPtr& msg, c
     //-- Step 2: Calculate descriptors (feature vectors)
     cv::SurfDescriptorExtractor extractor;
     extractor.compute( image, surfObj.keypoints, surfObj.descriptors);
-    std::cout << "Surf:" <<surfObj.descriptors.size() << "\n";
 
     s = surfObj.descriptors.size();
     if(s.height < 1)return depthFeatures;
 
+
+            //(std::vector<cv::KeyPoint> features,cv::Mat image)
+
     //-- Step 3: Start Conversion to 3D
-    pcl::PointCloud< pcl::PointXYZ > PointCloudXYZ;
-    pcl::fromROSMsg(*p,PointCloudXYZ);
+    /*for(int i = 0 ; i < depthPoints.height * depthPoints.width; i++)
+    {
+        myDescriptor temp;
+        temp.x = depthPoints.points[i].x;
+        temp.y = depthPoints.points[i].y;
+        temp.z = depthPoints.points[i].z;
+        depthFeatures.push_back(temp);
+    }*/
+
 
     for(int i = 0; i < s.height; i++)
     {
+        int x = round(surfObj.keypoints[i].pt.x);
+        int y = round(surfObj.keypoints[i].pt.y);
+
+        if(!isnan(depthPoints.points[640*y+x].x) && !isnan(depthPoints.points[640*y+x].x) && !isnan(depthPoints.points[640*y+x].x)){
+
         myDescriptor temp;
 
-        temp.x = surfObj.keypoints[i].pt.x;
-        temp.y = surfObj.keypoints[i].pt.y;
-        temp.z = PointCloudXYZ.points[round(surfObj.keypoints[i].pt.y)*PointCloudXYZ.height + round(surfObj.keypoints[i].pt.x)].z;
+        temp.x = depthPoints.points[640*y+x].x;
+        temp.y = depthPoints.points[640*y+x].y;
+        temp.z = depthPoints.points[640*y+x].z;
+
         for(int j = 0; j < 64; j ++){
             temp.descriptor[j] = surfObj.descriptors.at<float>(i,j);
         }
         depthFeatures.push_back(temp);
     }
+    }
 
-    std::cout << surfObj.descriptors.size() << "\t hello";
+    temp.visualise(surfObj.keypoints, image);
+    cv::waitKey(10);
     return depthFeatures;
 }

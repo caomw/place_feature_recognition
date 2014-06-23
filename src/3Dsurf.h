@@ -65,6 +65,6 @@ inline std::ostream& operator << (std::ostream& os, const myDescriptor& p)
 sensor_msgs::Image conversions(cv::Mat mat);
 cv::Mat conversions(const sensor_msgs::ImageConstPtr&);
 
-pcl::PointCloud<myDescriptor> depthSurf(const sensor_msgs::ImageConstPtr&, const sensor_msgs::PointCloud2::Ptr, int);
-
+pcl::PointCloud<myDescriptor> depthSurf(const sensor_msgs::ImageConstPtr&, const sensor_msgs::PointCloud2ConstPtr&, int);
+//pcl::PointCloud<myDescriptor> depthSurf(const sensor_msgs::ImageConstPtr&, const sensor_msgs::ImageConstPtr&, int);
 #endif

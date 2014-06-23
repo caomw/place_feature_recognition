@@ -1,8 +1,9 @@
-
+#include "ros/ros.h"
 #include <iostream>
 #include <math.h>
 #include <pcl/console/parse.h>
 #include <ros/ros.h>
+#include <ros/time.h>
 #include <fstream>
 #include "visualise.h"
 
@@ -16,46 +17,91 @@
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/CameraInfo.h>
 
-using namespace sensor_msgs;
+#include <message_filters/subscriber.h>
+#include <message_filters/synchronizer.h>
+#include <message_filters/sync_policies/approximate_time.h>
+#include <image_transport/image_transport.h>
+#include <image_transport/subscriber_filter.h>
 
+using namespace std;
+using namespace message_filters;
 
-void callback (const sensor_msgs::ImageConstPtr& input_image, const sensor_msgs::ImageConstPtr& input_depth) {
-//opencv stuff
+void callback(const sensor_msgs::ImageConstPtr &image,  const sensor_msgs::PointCloud2ConstPtr &depth,ros::NodeHandle *nh, ros::Publisher *pub)
+{
+    //std::cout << "("
+    //          << *reinterpret_cast<const float*>(&depth->data[12]) << ","
+    //          << *reinterpret_cast<const float*>(&depth->data[16]) << ","
+    //          << *reinterpret_cast<const float*>(&depth->data[20]) << ")" << std::endl;
+
+    *pub = nh->advertise<pcl::PointCloud<myDescriptor> > ("/camera/depth/surf", 1);
+
+    // Get 3D surf Features
+    pcl::PointCloud<myDescriptor> dimensionalSurf = depthSurf(image, depth, 600);
+
+    ros::Time time_st = ros::Time::now();
+    dimensionalSurf.header.stamp = time_st.toNSec()/1e3;
+    dimensionalSurf.header.frame_id  = depth->header.frame_id ;
+    pub->publish (dimensionalSurf);
+   // ros::shutdown();
 }
+/*
+void depthcallback(const sensor_msgs::ImageConstPtr &image,  const sensor_msgs::ImageConstPtr &depth, ros::NodeHandle *nh, ros::Publisher *pub)
+{
+    *pub = nh->advertise<pcl::PointCloud<myDescriptor> > ("/camera/depth/surf", 1);
+    // Get 3D surf Features
+    pcl::PointCloud<myDescriptor> dimensionalSurf = depthSurf(image, depth, 1000);
+    std::cout << dimensionalSurf.size() << std::endl;
+    dimensionalSurf.header.frame_id = "camera_depth_frame";
+    ros::Time time_st = ros::Time::now();
+    dimensionalSurf.header.stamp = time_st.toNSec()/1e3;
 
-
+    pub->publish(dimensionalSurf);
+}
+*/
 int main (int argc, char** argv)
 {
     ros::init(argc, argv, "hole_detection");
+    std::cout << "Running\n";
+    ros::Publisher pubTemp;
 
     ros::NodeHandle nh;
+    message_filters::Subscriber<sensor_msgs::Image> image_sub(nh, "/camera/rgb/image_color", 1);
+    //message_filters::Subscriber<sensor_msgs::Image> depth_sub(nh, "/camera/depth/image", 1);
+    message_filters::Subscriber<sensor_msgs::PointCloud2> depth_sub(nh, "/camera/depth/points", 1);
 
-    cv::namedWindow("matches");
-    cv::namedWindow("depth");
+    typedef sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::PointCloud2> MySyncPolicy;
+    //typedef sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::Image> MySyncPolicy;
+    // ApproximateTime takes a queue size as its constructor argument, hence MySyncPolicy(10)
+    Synchronizer<MySyncPolicy> sync(MySyncPolicy(1), image_sub, depth_sub);
+    sync.registerCallback(boost::bind(&callback, _1, _2, &nh, &pubTemp));
 
-    message_filters::Subscriber<sensor_msgs::Image> image_sub(nh, "camera/rgb/image_rect_color", 1);
-    message_filters::Subscriber<sensor_msgs::Image> depth_sub(nh, "camera/depth_registered/image_rect", 1);
+    /*
+    ros::Rate myTime(2);
+    while(ros::ok)
+    {
+        myTime.sleep();
+        ros::spinOnce();
+    }
+    */
 
-    message_filters::TimeSynchronizer<sensor_msgs::Image, sensor_msgs::Image> sync(image_sub, depth_sub, 10);
-    sync.registerCallback(boost::bind(&callback, _1, _2));
+    ros::spin();
 
-    ros::spin ();
     return 0;
 
 /*
     if(pcl::console::find_argument (argc, argv, "-h") >= 0 || argc < 3){
-        printUsage(argv[0]);
-        return 0;
+    printUsage(argv[0]);
+    return 0;
     }
 
     std::string foregroundFileName;
     if(pcl::console::parse (argc, argv, "-f", foregroundFileName) >= 0){
-        if(!queryFile(foregroundFileName, argv[0])) return 0;
+    if(!queryFile(foregroundFileName, argv[0])) return 0;
     }
 
     std::string backgroundFileName;
     if(pcl::console::parse (argc, argv, "-b", backgroundFileName) >= 0){
-        if(!queryFile(backgroundFileName, argv[0])) return 0;
+    if(!queryFile(backgroundFileName, argv[0])) return 0;
     }
 
     std::vector<std::string> topics;
@@ -75,55 +121,55 @@ int main (int argc, char** argv)
     int imCount= 0;
     int pCount = 0;
 
-    sensor_msgs::Image::Ptr         lastI;
+    sensor_msgs::Image::Ptr     lastI;
     sensor_msgs::PointCloud2::Ptr   lastP;
 
-    //sensor_msgs::Image::Ptr         i;
+    //sensor_msgs::Image::Ptr     i;
     //sensor_msgs::PointCloud2::Ptr   p;
 
     BOOST_FOREACH(rosbag::MessageInstance const m, viewB){
-        try { // Handle instantiation breaks
-            sensor_msgs::Image::Ptr         i = m.instantiate<sensor_msgs::Image>();
-            sensor_msgs::PointCloud2::Ptr   p = m.instantiate<sensor_msgs::PointCloud2>();
+    try { // Handle instantiation breaks
+        sensor_msgs::Image::Ptr     i = m.instantiate<sensor_msgs::Image>();
+        sensor_msgs::PointCloud2::Ptr   p = m.instantiate<sensor_msgs::PointCloud2>();
 
-            if(i != NULL)
-            {
-                lastI = i;
-                imCount++;
-                cv::waitKey(10);
-            }
-            if(p != NULL)
-            {
-                lastP = p;
-                pCount++;
-            }
-            if(imCount == pCount && imCount + pCount > 0)
-            {
-                pcl::PointCloud<myDescriptor> dimensionalSurf = depthSurf(lastI, lastP, 1000);
-                std::cout << dimensionalSurf.size() << std::endl;
-
-                cv::waitKey(10);
-            }
-        }
-        catch (const rosbag::BagFormatException& e)
+        if(i != NULL)
         {
-            std::cout << e.what() << "!" << std::endl;
-            continue;
+        lastI = i;
+        imCount++;
+        cv::waitKey(10);
+        }
+        if(p != NULL)
+        {
+        lastP = p;
+        pCount++;
+        }
+        if(imCount == pCount && imCount + pCount > 0)
+        {
+        pcl::PointCloud<myDescriptor> dimensionalSurf = depthSurf(lastI, lastP, 1000);
+        std::cout << dimensionalSurf.size() << std::endl;
+
+        cv::waitKey(10);
         }
     }
+    catch (const rosbag::BagFormatException& e)
+    {
+        std::cout << e.what() << "!" << std::endl;
+        continue;
+    }
+    }
     BOOST_FOREACH(rosbag::MessageInstance const m, viewF){
-        try { // Handle instantiation breaks
-            sensor_msgs::Image::Ptr 		i = m.instantiate<sensor_msgs::Image>();
-            if(i != NULL)
-            {
-                // copy prev code
-            }
-        }
-        catch (const rosbag::BagFormatException& e)
+    try { // Handle instantiation breaks
+        sensor_msgs::Image::Ptr 		i = m.instantiate<sensor_msgs::Image>();
+        if(i != NULL)
         {
-            std::cout << e.what() << "!" << std::endl;
-            continue;
+        // copy prev code
         }
+    }
+    catch (const rosbag::BagFormatException& e)
+    {
+        std::cout << e.what() << "!" << std::endl;
+        continue;
+    }
     }
 
     bagFore.close();
@@ -135,18 +181,18 @@ bool queryFile(std::string fileName, char * progName)
 {
     if(fileName.substr(fileName.find_last_of(".") + 1) != "bag")
     {
-        ROS_ERROR("Unable to convert none .bag file");
-        printUsage(progName);
+    ROS_ERROR("Unable to convert none .bag file");
+    printUsage(progName);
 
-        return false;
+    return false;
     }
     char realFile[200];
     strcpy(realFile, fileName.c_str());
     std::ifstream my_file(realFile);
     if (!my_file) {
-        ROS_ERROR("Cannot Locate %s", realFile);
-        printUsage(progName);
-        return false;
+    ROS_ERROR("Cannot Locate %s", realFile);
+    printUsage(progName);
+    return false;
     }
     return true;
 }
@@ -167,7 +213,7 @@ void extractDepth(const sensor_msgs::PointCloud2::Ptr p, int x, int y)
     std::cout << "height is " << PointCloudXYZ.height << std::endl;
     int cloudsize = (PointCloudXYZ.width) * (PointCloudXYZ.height);
     for (int i=0; i< cloudsize; i++){
-        std::cout << "(x,y,z) = " << PointCloudXYZ.points[i] << std::endl;
+    std::cout << "(x,y,z) = " << PointCloudXYZ.points[i] << std::endl;
     }
 
     PointCloudXYZ.points[0].x;
