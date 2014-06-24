@@ -29,29 +29,41 @@
 #include <pcl/point_cloud.h>
 #include <pcl/io/pcd_io.h>
 
+//////////////////////
+#include <pcl/console/parse.h>
+#include <pcl/filters/extract_indices.h>
+#include <pcl/io/pcd_io.h>
+#include <pcl/point_types.h>
+#include <pcl/sample_consensus/ransac.h>
+#include <pcl/sample_consensus/sac_model_plane.h>
+#include <pcl/sample_consensus/sac_model_sphere.h>
+#include <pcl/visualization/pcl_visualizer.h>
+#include <boost/thread/thread.hpp>
+#include <pcl/io/pcd_io.h>
+#include <pcl/point_types.h>
+#include <pcl/registration/icp.h>
+/////////////////////////
 struct surfStruct {
     std::vector<cv::KeyPoint> keypoints;
     cv::Mat     descriptors;
 };
 
-struct myDescriptor
+struct surfDepth
 {
     PCL_ADD_POINT4D                  // import logical XYZ + padding
     float descriptor[64];            // if cv::mat->type enums to 5 float (32f)
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW   // make sure our new allocators are aligned
 } EIGEN_ALIGN16;
 
-POINT_CLOUD_REGISTER_POINT_STRUCT (myDescriptor,           // here we assume a XYZ + "descriptor" (as fields)
+POINT_CLOUD_REGISTER_POINT_STRUCT (surfDepth,           // here we assume a XYZ + "descriptor" (as fields)
                                    (float, x, x)
                                    (float, y, y)
                                    (float, z, z)
                                    (float, descriptor, descriptor)
 );
 
-
-
 // define how to output results
-inline std::ostream& operator << (std::ostream& os, const myDescriptor& p)
+inline std::ostream& operator << (std::ostream& os, const surfDepth& p)
 {
     // to do
    /*os << p.x<<","<<p.y<<","<<p.z<<" - "<<p.roll*360.0/M_PI<<"deg,"<<p.pitch*360.0/M_PI<<"deg,"<<p.yaw*360.0/M_PI<<"deg - ";
@@ -65,6 +77,24 @@ inline std::ostream& operator << (std::ostream& os, const myDescriptor& p)
 sensor_msgs::Image conversions(cv::Mat mat);
 cv::Mat conversions(const sensor_msgs::ImageConstPtr&);
 
-pcl::PointCloud<myDescriptor> depthSurf(const sensor_msgs::ImageConstPtr&, const sensor_msgs::PointCloud2ConstPtr&, int);
-//pcl::PointCloud<myDescriptor> depthSurf(const sensor_msgs::ImageConstPtr&, const sensor_msgs::ImageConstPtr&, int);
+pcl::PointCloud<surfDepth> depthSurf(const sensor_msgs::ImageConstPtr&, const sensor_msgs::PointCloud2ConstPtr&, int);
+void matcher(pcl::PointCloud<surfDepth>, pcl::PointCloud<surfDepth>);
+void myicp(pcl::PointCloud<surfDepth>, pcl::PointCloud<surfDepth>);
+void ransac(pcl::PointCloud<surfDepth>, pcl::PointCloud<surfDepth>);
+//pcl::PointCloud<surfDepth> depthSurf(const sensor_msgs::ImageConstPtr&, const sensor_msgs::ImageConstPtr&, int);
+boost::shared_ptr<pcl::visualization::PCLVisualizer>
+simpleVis (pcl::PointCloud<pcl::PointXYZ> cloud)
+{
+  // --------------------------------------------
+  // -----Open 3D viewer and add point cloud-----
+  // --------------------------------------------
+  boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer (new pcl::visualization::PCLVisualizer ("3D Viewer"));
+  viewer->setBackgroundColor (0, 0, 0);
+  viewer->addPointCloud<pcl::PointXYZ> (cloud, "sample cloud");
+  viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 3, "sample cloud");
+  //viewer->addCoordinateSystem (1.0, "global");
+  viewer->initCameraParameters ();
+  return (viewer);
+}
+
 #endif

@@ -23,41 +23,38 @@
 #include <image_transport/image_transport.h>
 #include <image_transport/subscriber_filter.h>
 
+
 using namespace std;
 using namespace message_filters;
 
+pcl::PointCloud<surfDepth> lastpoints;
 void callback(const sensor_msgs::ImageConstPtr &image,  const sensor_msgs::PointCloud2ConstPtr &depth,ros::NodeHandle *nh, ros::Publisher *pub)
 {
-    //std::cout << "("
-    //          << *reinterpret_cast<const float*>(&depth->data[12]) << ","
-    //          << *reinterpret_cast<const float*>(&depth->data[16]) << ","
-    //          << *reinterpret_cast<const float*>(&depth->data[20]) << ")" << std::endl;
-
-    *pub = nh->advertise<pcl::PointCloud<myDescriptor> > ("/camera/depth/surf", 1);
+    *pub = nh->advertise<pcl::PointCloud<surfDepth> > ("/camera/depth/surf", 1);
 
     // Get 3D surf Features
-    pcl::PointCloud<myDescriptor> dimensionalSurf = depthSurf(image, depth, 600);
+    pcl::PointCloud<surfDepth> dimensionalSurf = depthSurf(image, depth, 600);
 
+    // Configure message header
     ros::Time time_st = ros::Time::now();
     dimensionalSurf.header.stamp = time_st.toNSec()/1e3;
     dimensionalSurf.header.frame_id  = depth->header.frame_id ;
-    pub->publish (dimensionalSurf);
-   // ros::shutdown();
-}
-/*
-void depthcallback(const sensor_msgs::ImageConstPtr &image,  const sensor_msgs::ImageConstPtr &depth, ros::NodeHandle *nh, ros::Publisher *pub)
-{
-    *pub = nh->advertise<pcl::PointCloud<myDescriptor> > ("/camera/depth/surf", 1);
-    // Get 3D surf Features
-    pcl::PointCloud<myDescriptor> dimensionalSurf = depthSurf(image, depth, 1000);
-    std::cout << dimensionalSurf.size() << std::endl;
-    dimensionalSurf.header.frame_id = "camera_depth_frame";
-    ros::Time time_st = ros::Time::now();
-    dimensionalSurf.header.stamp = time_st.toNSec()/1e3;
 
-    pub->publish(dimensionalSurf);
+    // Publish custom Surf feature message
+    pub->publish (dimensionalSurf);
+    std::cout << dimensionalSurf.size() << " Features\t\n";
+    std::cout << "\e[A";
+
+    // atempt compare
+    if(lastpoints.size() > 0 && dimensionalSurf.size() > 0)
+    {
+        //std::cout << lastpoints.size() << "\t" <<  dimensionalSurf.size() << std::endl;
+        //matcher(lastpoints, dimensionalSurf);
+        myicp(lastpoints, dimensionalSurf);
+    }
+    lastpoints = dimensionalSurf;
 }
-*/
+
 int main (int argc, char** argv)
 {
     ros::init(argc, argv, "hole_detection");
@@ -70,7 +67,6 @@ int main (int argc, char** argv)
     message_filters::Subscriber<sensor_msgs::PointCloud2> depth_sub(nh, "/camera/depth/points", 1);
 
     typedef sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::PointCloud2> MySyncPolicy;
-    //typedef sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::Image> MySyncPolicy;
     // ApproximateTime takes a queue size as its constructor argument, hence MySyncPolicy(10)
     Synchronizer<MySyncPolicy> sync(MySyncPolicy(1), image_sub, depth_sub);
     sync.registerCallback(boost::bind(&callback, _1, _2, &nh, &pubTemp));
@@ -145,7 +141,7 @@ int main (int argc, char** argv)
         }
         if(imCount == pCount && imCount + pCount > 0)
         {
-        pcl::PointCloud<myDescriptor> dimensionalSurf = depthSurf(lastI, lastP, 1000);
+        pcl::PointCloud<surfDepth> dimensionalSurf = depthSurf(lastI, lastP, 1000);
         std::cout << dimensionalSurf.size() << std::endl;
 
         cv::waitKey(10);
