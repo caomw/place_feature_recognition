@@ -30,6 +30,13 @@ public:
     void visualise(narfStruct);
     void visualise(std::vector<cv::KeyPoint>, cv::Mat);
     void visualise(std::string);
+    visualisation(std::string x)
+    {
+        this->type = x;
+    }
+    visualisation(){};
+private:
+    std::string type;
 };
 
 

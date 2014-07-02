@@ -19,14 +19,14 @@ void visualisation::visualise(narfStruct x)
     pcl::RangeImage& range_image = x.rangeImg;
 
     pcl::visualization::PCLVisualizer viewer ("3D Viewer");
-      viewer.setBackgroundColor (1, 1, 1);
-      pcl::visualization::PointCloudColorHandlerCustom<pcl::PointWithRange> range_image_color_handler (range_image_ptr, 0, 0, 0);
-      viewer.addPointCloud (range_image_ptr, range_image_color_handler, "range image");
-      viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1, "range image");
-      //viewer.addCoordinateSystem (1.0f, "global");
-      //PointCloudColorHandlerCustom<PointType> point_cloud_color_handler (point_cloud_ptr, 150, 150, 150);
-      //viewer.addPointCloud (point_cloud_ptr, point_cloud_color_handler, "original point cloud");
-      viewer.initCameraParameters ();
+    viewer.setBackgroundColor (1, 1, 1);
+    pcl::visualization::PointCloudColorHandlerCustom<pcl::PointWithRange> range_image_color_handler (range_image_ptr, 0, 0, 0);
+    viewer.addPointCloud (range_image_ptr, range_image_color_handler, "range image");
+    viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1, "range image");
+    //viewer.addCoordinateSystem (1.0f, "global");
+    //PointCloudColorHandlerCustom<PointType> point_cloud_color_handler (point_cloud_ptr, 150, 150, 150);
+    //viewer.addPointCloud (point_cloud_ptr, point_cloud_color_handler, "original point cloud");
+    viewer.initCameraParameters ();
 
     setViewerPose (viewer, range_image.getTransformationToWorldSystem ());
 
@@ -34,8 +34,9 @@ void visualisation::visualise(narfStruct x)
     range_image_widget.showRangeImage (range_image);
 
     // Sleep
-    unsigned int microseconds = 5000000;// set sleep 1000000 = 1second
-    usleep(microseconds);               // SLEEP
+    int seconds = 5;
+    unsigned int microseconds = 1000000; // set sleep 1000000 = 1second
+    usleep(microseconds * seconds);      // SLEEP
 }
 
 void visualisation::visualise(std::vector<cv::KeyPoint> features,cv::Mat image)
@@ -45,7 +46,14 @@ void visualisation::visualise(std::vector<cv::KeyPoint> features,cv::Mat image)
     {
       cv::Mat imageSurfOverlayed;
       cv::drawKeypoints(image, features, imageSurfOverlayed, cv::Scalar( 0, 0, 255), cv::DrawMatchesFlags::DEFAULT);
-      cv::imshow("Good Matches", imageSurfOverlayed);
+      if(this->type.empty())
+      {
+            cv::imshow("Good Matches", imageSurfOverlayed);
+      }
+      else
+      {
+          cv::imshow(this->type, imageSurfOverlayed);
+      }
     }
 }
 

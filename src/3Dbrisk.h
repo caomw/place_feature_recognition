@@ -1,13 +1,13 @@
-#ifndef DEPTHSURF_H
-#define DEPTHSURF_H
+#ifndef DEPTHBRISK_H
+#define DEPTHBRISK_H
 
 #include "features.h"
-#include "conversions.h"
 #include "opencv2/core/core.hpp"
 #include <opencv2/legacy/legacy.hpp>
 #include <opencv2/nonfree/features2d.hpp>
 #include "opencv2/highgui/highgui.hpp"
 #include <std_msgs/Int16.h>
+#include <cv_bridge/cv_bridge.h>
 #include <fstream>
 #include <boost/foreach.hpp>
 #include <sensor_msgs/image_encodings.h>
@@ -43,27 +43,25 @@
 #include <pcl/point_types.h>
 #include <pcl/registration/icp.h>
 /////////////////////////
-struct surfStruct {
+struct briskStruct {
     std::vector<cv::KeyPoint> keypoints;
     cv::Mat     descriptors;
 };
 
-struct surfDepth
+struct briskDepth
 {
     PCL_ADD_POINT4D                  // import logical XYZ + padding
-    float descriptor[64];            // if cv::mat->type enums to 5 float (32f)
+    float descriptor[60];            // if cv::mat->type enums to 5 float (32f)
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW   // make sure our new allocators are aligned
 } EIGEN_ALIGN16;
 
-POINT_CLOUD_REGISTER_POINT_STRUCT (surfDepth,           // here we assume a XYZ + "descriptor" (as fields)
+POINT_CLOUD_REGISTER_POINT_STRUCT (briskDepth,           // here we assume a XYZ + "descriptor" (as fields)
                                    (float, x, x)
                                    (float, y, y)
                                    (float, z, z)
                                    (float, descriptor, descriptor)
 );
-
-// define how to output results
-inline std::ostream& operator << (std::ostream& os, const surfDepth& p)
+inline std::ostream& operator << (std::ostream& os, const briskDepth& p)
 {
     // to do
    /*os << p.x<<","<<p.y<<","<<p.z<<" - "<<p.roll*360.0/M_PI<<"deg,"<<p.pitch*360.0/M_PI<<"deg,"<<p.yaw*360.0/M_PI<<"deg - ";
@@ -74,11 +72,6 @@ inline std::ostream& operator << (std::ostream& os, const surfDepth& p)
     //http://docs.pointclouds.org/1.0.0/point__types_8hpp_source.html  << for moar
 }
 
-pcl::PointCloud<surfDepth> depthSurf(const sensor_msgs::ImageConstPtr&, const sensor_msgs::PointCloud2ConstPtr&, int);
-void matcher(pcl::PointCloud<surfDepth>, pcl::PointCloud<surfDepth>);
-void myicp(pcl::PointCloud<surfDepth>, pcl::PointCloud<surfDepth>);
-void ransac(pcl::PointCloud<surfDepth>, pcl::PointCloud<surfDepth>);
-//pcl::PointCloud<surfDepth> depthSurf(const sensor_msgs::ImageConstPtr&, const sensor_msgs::ImageConstPtr&, int);
-
+pcl::PointCloud<briskDepth> depthBrisk(const sensor_msgs::ImageConstPtr&, const sensor_msgs::PointCloud2ConstPtr&);
 
 #endif

@@ -30,7 +30,7 @@ using namespace message_filters;
 
 pcl::PointCloud<surfDepth>  lastSurf;
 pcl::PointCloud<briskDepth> lastBrisk;
-cv::Mat lastImage;
+
 void callback(const sensor_msgs::ImageConstPtr &image,  const sensor_msgs::PointCloud2ConstPtr &depth,
               ros::NodeHandle *nh, ros::Publisher *spub, ros::Publisher *bpub)
 {
