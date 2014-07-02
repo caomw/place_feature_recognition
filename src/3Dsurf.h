@@ -74,6 +74,7 @@ inline std::ostream& operator << (std::ostream& os, const surfDepth& p)
     //http://docs.pointclouds.org/1.0.0/point__types_8hpp_source.html  << for moar
 }
 
+pcl::PointCloud<surfDepth> GPUSurf(const sensor_msgs::ImageConstPtr&, const sensor_msgs::PointCloud2ConstPtr&, int);
 pcl::PointCloud<surfDepth> depthSurf(const sensor_msgs::ImageConstPtr&, const sensor_msgs::PointCloud2ConstPtr&, int);
 void matcher(pcl::PointCloud<surfDepth>, pcl::PointCloud<surfDepth>);
 void myicp(pcl::PointCloud<surfDepth>, pcl::PointCloud<surfDepth>);

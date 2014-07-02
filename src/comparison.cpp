@@ -30,7 +30,7 @@ using namespace message_filters;
 
 pcl::PointCloud<surfDepth>  lastSurf;
 pcl::PointCloud<briskDepth> lastBrisk;
-cv::Mat lastImage;
+
 void callback(const sensor_msgs::ImageConstPtr &image,  const sensor_msgs::PointCloud2ConstPtr &depth,
               ros::NodeHandle *nh, ros::Publisher *spub, ros::Publisher *bpub)
 {
@@ -39,6 +39,7 @@ void callback(const sensor_msgs::ImageConstPtr &image,  const sensor_msgs::Point
     *bpub = nh->advertise<pcl::PointCloud<surfDepth> > ("/camera/depth/brisk",1);
 
     // Get 3D Features
+    GPUSurf(image, depth, 400);
     pcl::PointCloud<surfDepth> dimensionalSurf = depthSurf(image, depth, 400);
     pcl::PointCloud<briskDepth> dimensionalBrisk = depthBrisk(image, depth);
 

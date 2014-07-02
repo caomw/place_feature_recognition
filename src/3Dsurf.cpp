@@ -4,7 +4,45 @@
 #include <stdlib.h>
 #include <math.h>
 
+// globallly initialise visualiser
 visualisation SVisualiser("Surf");
+
+#include "opencv2/gpu/gpu.hpp"
+pcl::PointCloud<surfDepth> GPUSurf(const sensor_msgs::ImageConstPtr& msg, const sensor_msgs::PointCloud2ConstPtr &depth, int hessian)
+{
+    pcl::PointCloud<surfDepth> depthFeatures;
+
+    cv::Mat image(conversions(msg));
+    surfStruct surfObj;
+
+    if(msg->encoding != "bgr8" )
+    {
+        ROS_ERROR("Unsupported image encoding:");
+        return depthFeatures;  // Return Null image
+    }
+
+    // Check image size big enough
+    cv::Size s = image.size();
+    if(s.height < 1)return depthFeatures;
+
+    // Convert sensor message
+    pcl::PointCloud< pcl::PointXYZ > depthPoints;
+    pcl::fromROSMsg(*depth,depthPoints);
+
+    // Detect the keypoints using SURF Detector
+    cv::SurfFeatureDetector detector(hessian);
+
+    detector.detect(image, surfObj.keypoints);
+
+    // Calculate descriptors (feature vectors)
+    cv::SurfDescriptorExtractor extractor;
+    extractor.compute( image, surfObj.keypoints, surfObj.descriptors);
+
+    s = surfObj.descriptors.size();
+    if(s.height < 1)return depthFeatures;
+
+    return depthFeatures;
+}
 
 pcl::PointCloud<surfDepth> depthSurf(const sensor_msgs::ImageConstPtr& msg, const sensor_msgs::PointCloud2ConstPtr &depth, int hessian)
 {
