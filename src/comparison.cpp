@@ -43,6 +43,17 @@ void callback(const sensor_msgs::ImageConstPtr &image,  const sensor_msgs::Point
     pcl::PointCloud<surfDepth> dimensionalSurf = depthSurf(image, depth, 400);
     pcl::PointCloud<briskDepth> dimensionalBrisk = depthBrisk(image, depth);
 
+    cv::Mat descriptorsA(dimensionalBrisk.size(), 64, CV_8UC1 );
+
+    for(int i =0; i < dimensionalBrisk.size(); i++)
+     {
+         cv::Mat tempRow = cv::Mat(1, 64, CV_8UC1 , & dimensionalBrisk[0].descriptor);
+         descriptorsA.push_back(cv::Mat(tempRow));
+     }
+
+    cv::imshow("descriptorsB", descriptorsA);
+    cv::waitKey(40);
+
     // Configure message headers
     ros::Time time_st = ros::Time::now();
     dimensionalSurf.header.stamp = time_st.toNSec()/1e3;
@@ -57,13 +68,13 @@ void callback(const sensor_msgs::ImageConstPtr &image,  const sensor_msgs::Point
 
     // print found depth extractible features
     std::cout << dimensionalSurf.size() << " Surf features,\t" << dimensionalBrisk.size() << " Brisk features.\n";
-    std::cout << "\e[A";
+    //std::cout << "\e[A";
 
     // atempt compare
     if(lastSurf.size() > 0 && dimensionalSurf.size() > 0)
     {
         //std::cout << lastSurf.size() << "\t" <<  dimensionalSurf.size() << std::endl;
-        //matcher(lastSurf, dimensionalSurf);
+        DMatch(lastSurf, dimensionalSurf);
         //myicp(lastSurf, dimensionalSurf);
     }
     lastSurf = dimensionalSurf;
@@ -80,7 +91,6 @@ int main (int argc, char** argv)
 
     ros::NodeHandle nh;
     message_filters::Subscriber<sensor_msgs::Image> image_sub(nh, "/camera/rgb/image_color", 1);
-    //message_filters::Subscriber<sensor_msgs::Image> depth_sub(nh, "/camera/depth/image", 1);
     message_filters::Subscriber<sensor_msgs::PointCloud2> depth_sub(nh, "/camera/depth/points", 1);
 
     typedef sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::PointCloud2> MySyncPolicy;

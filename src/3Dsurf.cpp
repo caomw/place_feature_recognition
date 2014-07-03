@@ -100,12 +100,12 @@ pcl::PointCloud<surfDepth> depthSurf(const sensor_msgs::ImageConstPtr& msg, cons
         }
     }
 
-    SVisualiser.visualise(surfObj.keypoints, image);
-    cv::waitKey(10);
+    //SVisualiser.visualise(surfObj.keypoints, image);
+    //cv::waitKey(10);
     return depthFeatures;
 }
 
-void matcher(pcl::PointCloud<surfDepth> a, pcl::PointCloud<surfDepth> b)
+void DMatch(pcl::PointCloud<surfDepth> a, pcl::PointCloud<surfDepth> b)
 {
 
     try
@@ -113,7 +113,7 @@ void matcher(pcl::PointCloud<surfDepth> a, pcl::PointCloud<surfDepth> b)
         cv::Mat descriptorsA(a.size(), 64, CV_8UC1 );
         cv::Mat descriptorsB(b.size(), 64, CV_8UC1 );
 
-        for(int i =0; i < a.size(); i++)
+       for(int i =0; i < a.size(); i++)
         {
             cv::Mat tempRow = cv::Mat(1, 64, CV_8UC1 , &a[i].descriptor);
             descriptorsA.push_back(cv::Mat(tempRow));
@@ -125,31 +125,31 @@ void matcher(pcl::PointCloud<surfDepth> a, pcl::PointCloud<surfDepth> b)
             descriptorsB.push_back(cv::Mat(tempRow));
         }
 
-        cv::FlannBasedMatcher flanMatch;
+        cv::BFMatcher matcher(cv::NORM_L2);
         std::vector< cv::DMatch > matches;
-        flanMatch.match( descriptorsA, descriptorsB, matches );
 
-        double max_dist = 0; double min_dist = 0.9;
+        matcher.match( descriptorsA, descriptorsB, matches );
 
-          //-- Quick calculation of max and min distances between keypoints
-        for( int i = 0; i < descriptorsA.rows; i++ )
+        double max_dist = 0; double min_dist = 1000;
+
+        for (int i =0; i < descriptorsA.rows;i++)
         {
             double dist = matches[i].distance;
-            if( dist < min_dist ) min_dist = dist;
-            if( dist > max_dist ) max_dist = dist;
+            if(max_dist<dist) max_dist = dist;
+            if(min_dist>dist) min_dist = dist;
         }
 
-        printf("-- Max dist : %f \n", max_dist );
-        printf("-- Min dist : %f \n", min_dist );
+        cout << " max dist " <<  max_dist << ", min dist " << min_dist << endl;
 
         std::vector< cv::DMatch > good_matches;
 
-        for( int i = 0; i < descriptorsA.rows; i++ )
-        { if( matches[i].distance < 2*min_dist )
-            {
-                good_matches.push_back( matches[i]);
-            }
+        for (int i=0;i<descriptorsA.rows;i++)
+        {
+            if( matches[i].distance<1.5*min_dist)
+            good_matches.push_back(matches[i]);
         }
+
+        std::cout << "Good matches " << good_matches.size() << std::endl;
     }
     catch (const std::exception &exc)
     {
@@ -161,6 +161,7 @@ void matcher(pcl::PointCloud<surfDepth> a, pcl::PointCloud<surfDepth> b)
 
 void myicp(pcl::PointCloud<surfDepth> a, pcl::PointCloud<surfDepth> b)
 {
+    /*
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_in (new pcl::PointCloud<pcl::PointXYZ>);
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_out (new pcl::PointCloud<pcl::PointXYZ>);
 
@@ -190,7 +191,7 @@ void myicp(pcl::PointCloud<surfDepth> a, pcl::PointCloud<surfDepth> b)
     std::cout << "has converged:" << icp.hasConverged() << " score: " <<
     icp.getFitnessScore() << std::endl;
     std::cout << icp.getFinalTransformation() << std::endl;
-
+*/
 }
 
 void ransac(pcl::PointCloud<surfDepth> a, pcl::PointCloud<surfDepth> b)
