@@ -60,9 +60,7 @@ pcl::PointCloud<briskDepth> depthBrisk(const sensor_msgs::ImageConstPtr& msg, co
             temp.y = depthPoints.points[depthPoints.width*y+x].y;
             temp.z = depthPoints.points[depthPoints.width*y+x].z;
 
-            for(int j = 0; j < 60; j ++){
-                temp.descriptor[j] = briskObj.descriptors.at<float>(i,j);
-            }
+            temp.descriptor = briskObj.descriptors.row(i);
             depthFeatures.push_back(temp);
         }
     }
@@ -71,4 +69,54 @@ pcl::PointCloud<briskDepth> depthBrisk(const sensor_msgs::ImageConstPtr& msg, co
     cv::waitKey(10);
 
     return depthFeatures;
+}
+
+void BDMatch(pcl::PointCloud<briskDepth> a, pcl::PointCloud<briskDepth> b)
+{
+
+    try
+    {
+        cv::Mat descriptorsA;
+        cv::Mat descriptorsB;
+        for(int i =0; i < a.size(); i++)
+        {
+            descriptorsA.push_back(a[i].descriptor);
+        }
+
+        for(int i =0; i < b.size(); i++)
+        {
+            descriptorsB.push_back(b[i].descriptor);
+        }
+
+        cv::waitKey(40);
+
+        cv::BFMatcher matcher(cv::NORM_L2);
+        std::vector< cv::DMatch > matches;
+
+        matcher.match( descriptorsA, descriptorsB, matches );
+
+        double max_dist = 0; double min_dist = 1000;
+
+        for (int i =0; i < descriptorsA.rows;i++)
+        {
+            double dist = matches[i].distance;
+            if(max_dist<dist) max_dist = dist;
+            if(min_dist>dist) min_dist = dist;
+        }
+
+        std::vector< cv::DMatch > good_matches;
+
+        for (int i=0;i<descriptorsA.rows;i++)
+        {
+            if( matches[i].distance<3*min_dist)
+            good_matches.push_back(matches[i]);
+        }
+
+        std::cout << good_matches.size() << " Brisk features matched from, " << a.size() << ", " << b.size() << " sets." << std::endl;
+    }
+    catch (const std::exception &exc)
+    {
+        // catch anything thrown within try block that derives from std::exception
+        std::cerr << exc.what();
+    }
 }

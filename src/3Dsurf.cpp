@@ -94,8 +94,9 @@ pcl::PointCloud<surfDepth> depthSurf(const sensor_msgs::ImageConstPtr& msg, cons
             temp.z = depthPoints.points[depthPoints.width*y+x].z;
 
             for(int j = 0; j < 64; j ++){
-                temp.descriptor[j] = surfObj.descriptors.at<float>(i,j);
+               // temp.descriptor[j] = surfObj.descriptors.at<float>(i,j);
             }
+            temp.descriptor = surfObj.descriptors.row(i);
             depthFeatures.push_back(temp);
         }
     }
@@ -105,25 +106,24 @@ pcl::PointCloud<surfDepth> depthSurf(const sensor_msgs::ImageConstPtr& msg, cons
     return depthFeatures;
 }
 
-void DMatch(pcl::PointCloud<surfDepth> a, pcl::PointCloud<surfDepth> b)
+void SDMatch(pcl::PointCloud<surfDepth> a, pcl::PointCloud<surfDepth> b)
 {
 
     try
     {
-        cv::Mat descriptorsA(a.size(), 64, CV_8UC1 );
-        cv::Mat descriptorsB(b.size(), 64, CV_8UC1 );
-
-       for(int i =0; i < a.size(); i++)
+        cv::Mat descriptorsA;
+        cv::Mat descriptorsB;
+        for(int i =0; i < a.size(); i++)
         {
-            cv::Mat tempRow = cv::Mat(1, 64, CV_8UC1 , &a[i].descriptor);
-            descriptorsA.push_back(cv::Mat(tempRow));
+            descriptorsA.push_back(a[i].descriptor);
         }
 
         for(int i =0; i < b.size(); i++)
         {
-            cv::Mat tempRow = cv::Mat(1, 64, CV_8UC1 , &b[i].descriptor);
-            descriptorsB.push_back(cv::Mat(tempRow));
+            descriptorsB.push_back(b[i].descriptor);
         }
+
+        cv::waitKey(40);
 
         cv::BFMatcher matcher(cv::NORM_L2);
         std::vector< cv::DMatch > matches;
@@ -139,17 +139,15 @@ void DMatch(pcl::PointCloud<surfDepth> a, pcl::PointCloud<surfDepth> b)
             if(min_dist>dist) min_dist = dist;
         }
 
-        cout << " max dist " <<  max_dist << ", min dist " << min_dist << endl;
-
         std::vector< cv::DMatch > good_matches;
 
         for (int i=0;i<descriptorsA.rows;i++)
         {
-            if( matches[i].distance<1.5*min_dist)
+            if( matches[i].distance<3*min_dist)
             good_matches.push_back(matches[i]);
         }
 
-        std::cout << "Good matches " << good_matches.size() << std::endl;
+        std::cout << good_matches.size() << " Surf features matched from, " << a.size() << ", " << b.size() << " sets." << std::endl;
     }
     catch (const std::exception &exc)
     {

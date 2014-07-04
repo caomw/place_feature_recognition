@@ -51,7 +51,7 @@ struct surfStruct {
 struct surfDepth
 {
     PCL_ADD_POINT4D                  // import logical XYZ + padding
-    float descriptor[64];            // if cv::mat->type enums to 5 float (32f)
+    cv::Mat descriptor;            // if cv::mat->type enums to 5 float (32f)
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW   // make sure our new allocators are aligned
 } EIGEN_ALIGN16;
 
@@ -76,7 +76,7 @@ inline std::ostream& operator << (std::ostream& os, const surfDepth& p)
 
 pcl::PointCloud<surfDepth> GPUSurf(const sensor_msgs::ImageConstPtr&, const sensor_msgs::PointCloud2ConstPtr&, int);
 pcl::PointCloud<surfDepth> depthSurf(const sensor_msgs::ImageConstPtr&, const sensor_msgs::PointCloud2ConstPtr&, int);
-void DMatch(pcl::PointCloud<surfDepth>, pcl::PointCloud<surfDepth>);
+void SDMatch(pcl::PointCloud<surfDepth>, pcl::PointCloud<surfDepth>);
 void myicp(pcl::PointCloud<surfDepth>, pcl::PointCloud<surfDepth>);
 void ransac(pcl::PointCloud<surfDepth>, pcl::PointCloud<surfDepth>);
 //pcl::PointCloud<surfDepth> depthSurf(const sensor_msgs::ImageConstPtr&, const sensor_msgs::ImageConstPtr&, int);

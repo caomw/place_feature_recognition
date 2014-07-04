@@ -43,6 +43,8 @@
 #include <pcl/point_types.h>
 #include <pcl/registration/icp.h>
 /////////////////////////
+
+
 struct briskStruct {
     std::vector<cv::KeyPoint> keypoints;
     cv::Mat     descriptors;
@@ -51,7 +53,7 @@ struct briskStruct {
 struct briskDepth
 {
     PCL_ADD_POINT4D                  // import logical XYZ + padding
-    float descriptor[60];            // if cv::mat->type enums to 5 float (32f)
+    cv::Mat descriptor;            // if cv::mat->type enums to 5 float (32f)
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW   // make sure our new allocators are aligned
 } EIGEN_ALIGN16;
 
@@ -73,5 +75,5 @@ inline std::ostream& operator << (std::ostream& os, const briskDepth& p)
 }
 
 pcl::PointCloud<briskDepth> depthBrisk(const sensor_msgs::ImageConstPtr&, const sensor_msgs::PointCloud2ConstPtr&);
-
+void BDMatch(pcl::PointCloud<briskDepth>, pcl::PointCloud<briskDepth>);
 #endif

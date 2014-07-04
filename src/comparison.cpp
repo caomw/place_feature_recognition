@@ -43,17 +43,6 @@ void callback(const sensor_msgs::ImageConstPtr &image,  const sensor_msgs::Point
     pcl::PointCloud<surfDepth> dimensionalSurf = depthSurf(image, depth, 400);
     pcl::PointCloud<briskDepth> dimensionalBrisk = depthBrisk(image, depth);
 
-    cv::Mat descriptorsA(dimensionalBrisk.size(), 64, CV_8UC1 );
-
-    for(int i =0; i < dimensionalBrisk.size(); i++)
-     {
-         cv::Mat tempRow = cv::Mat(1, 64, CV_8UC1 , & dimensionalBrisk[0].descriptor);
-         descriptorsA.push_back(cv::Mat(tempRow));
-     }
-
-    cv::imshow("descriptorsB", descriptorsA);
-    cv::waitKey(40);
-
     // Configure message headers
     ros::Time time_st = ros::Time::now();
     dimensionalSurf.header.stamp = time_st.toNSec()/1e3;
@@ -67,15 +56,19 @@ void callback(const sensor_msgs::ImageConstPtr &image,  const sensor_msgs::Point
     bpub->publish (dimensionalBrisk);
 
     // print found depth extractible features
-    std::cout << dimensionalSurf.size() << " Surf features,\t" << dimensionalBrisk.size() << " Brisk features.\n";
+    //std::cout << dimensionalSurf.size() << " Surf features,\t" << dimensionalBrisk.size() << " Brisk features.\n";
     //std::cout << "\e[A";
 
     // atempt compare
     if(lastSurf.size() > 0 && dimensionalSurf.size() > 0)
     {
         //std::cout << lastSurf.size() << "\t" <<  dimensionalSurf.size() << std::endl;
-        DMatch(lastSurf, dimensionalSurf);
+        SDMatch(lastSurf, dimensionalSurf);
+        BDMatch(lastBrisk, dimensionalBrisk);
         //myicp(lastSurf, dimensionalSurf);
+    }else
+    {
+        std::cout << "First loop " << dimensionalSurf.size() << " Surf, " << dimensionalBrisk.size() << " Brisk features.\n";
     }
     lastSurf = dimensionalSurf;
     lastBrisk = dimensionalBrisk;
