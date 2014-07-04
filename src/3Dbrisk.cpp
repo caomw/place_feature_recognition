@@ -88,8 +88,6 @@ void BDMatch(pcl::PointCloud<briskDepth> a, pcl::PointCloud<briskDepth> b)
             descriptorsB.push_back(b[i].descriptor);
         }
 
-        cv::waitKey(40);
-
         cv::BFMatcher matcher(cv::NORM_L2);
         std::vector< cv::DMatch > matches;
 

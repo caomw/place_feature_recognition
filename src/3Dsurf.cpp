@@ -93,9 +93,6 @@ pcl::PointCloud<surfDepth> depthSurf(const sensor_msgs::ImageConstPtr& msg, cons
             temp.y = depthPoints.points[depthPoints.width*y+x].y;
             temp.z = depthPoints.points[depthPoints.width*y+x].z;
 
-            for(int j = 0; j < 64; j ++){
-               // temp.descriptor[j] = surfObj.descriptors.at<float>(i,j);
-            }
             temp.descriptor = surfObj.descriptors.row(i);
             depthFeatures.push_back(temp);
         }
@@ -122,8 +119,6 @@ void SDMatch(pcl::PointCloud<surfDepth> a, pcl::PointCloud<surfDepth> b)
         {
             descriptorsB.push_back(b[i].descriptor);
         }
-
-        cv::waitKey(40);
 
         cv::BFMatcher matcher(cv::NORM_L2);
         std::vector< cv::DMatch > matches;
