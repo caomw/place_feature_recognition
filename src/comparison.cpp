@@ -24,7 +24,6 @@
 #include <image_transport/image_transport.h>
 #include <image_transport/subscriber_filter.h>
 
-
 using namespace std;
 using namespace message_filters;
 
@@ -42,6 +41,8 @@ void callback(const sensor_msgs::ImageConstPtr &image,  const sensor_msgs::Point
     GPUSurf(image, depth, 400);
     pcl::PointCloud<surfDepth> dimensionalSurf = depthSurf(image, depth, 400);
     pcl::PointCloud<briskDepth> dimensionalBrisk = depthBrisk(image, depth);
+    pcl::PointCloud<surfDepth> tempSurf;
+    pcl::PointCloud<briskDepth> tempBrisk;
 
     // Configure message headers
     ros::Time time_st = ros::Time::now();
@@ -51,9 +52,11 @@ void callback(const sensor_msgs::ImageConstPtr &image,  const sensor_msgs::Point
     dimensionalBrisk.header.stamp = time_st.toNSec()/1e3;
     dimensionalBrisk.header.frame_id  = depth->header.frame_id ;
 
+
+
     // Publish custom Surf feature message
-    spub->publish (dimensionalSurf);
-    bpub->publish (dimensionalBrisk);
+    //spub->publish (dimensionalSurf);
+    //bpub->publish (dimensionalBrisk);
 
     // print found depth extractible features
     //std::cout << dimensionalSurf.size() << " Surf features,\t" << dimensionalBrisk.size() << " Brisk features.\n";
@@ -63,13 +66,20 @@ void callback(const sensor_msgs::ImageConstPtr &image,  const sensor_msgs::Point
     if(lastSurf.size() > 0 && dimensionalSurf.size() > 0)
     {
         //std::cout << lastSurf.size() << "\t" <<  dimensionalSurf.size() << std::endl;
-        SDMatch(lastSurf, dimensionalSurf);
-        BDMatch(lastBrisk, dimensionalBrisk);
+        //SDMatch(lastSurf, dimensionalSurf);
+        tempBrisk = BDMatch(lastBrisk, dimensionalBrisk);
+tempSurf = SDMatch(lastSurf, dimensionalSurf);
         //myicp(lastSurf, dimensionalSurf);
     }else
     {
         std::cout << "First loop " << dimensionalSurf.size() << " Surf, " << dimensionalBrisk.size() << " Brisk features.\n";
     }
+    tempBrisk.header.stamp = time_st.toNSec()/1e3;
+    tempBrisk.header.frame_id  = depth->header.frame_id ;
+    bpub->publish(tempBrisk);
+    tempSurf.header.stamp = time_st.toNSec()/1e3;
+    tempSurf.header.frame_id  = depth->header.frame_id ;
+    spub->publish(tempSurf);
     lastSurf = dimensionalSurf;
     lastBrisk = dimensionalBrisk;
 
@@ -94,5 +104,4 @@ int main (int argc, char** argv)
     ros::spin();
 
     return 0;
-
 }

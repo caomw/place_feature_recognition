@@ -75,5 +75,5 @@ inline std::ostream& operator << (std::ostream& os, const briskDepth& p)
 }
 
 pcl::PointCloud<briskDepth> depthBrisk(const sensor_msgs::ImageConstPtr&, const sensor_msgs::PointCloud2ConstPtr&);
-void BDMatch(pcl::PointCloud<briskDepth>, pcl::PointCloud<briskDepth>);
+pcl::PointCloud<briskDepth> BDMatch(pcl::PointCloud<briskDepth>, pcl::PointCloud<briskDepth>);
 #endif

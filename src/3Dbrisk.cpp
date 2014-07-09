@@ -28,8 +28,8 @@ pcl::PointCloud<briskDepth> depthBrisk(const sensor_msgs::ImageConstPtr& msg, co
     pcl::fromROSMsg(*depth,depthPoints);
 
     // Assigning stable BRISK constants
-    int Thresh = 60;
-    int Octave = 4;
+    int Thresh = 30;
+    int Octave = 3;
     float PatternScales=1.0f;
 
     // Detect the keypoints using traditional BRISK Detector
@@ -71,9 +71,9 @@ pcl::PointCloud<briskDepth> depthBrisk(const sensor_msgs::ImageConstPtr& msg, co
     return depthFeatures;
 }
 
-void BDMatch(pcl::PointCloud<briskDepth> a, pcl::PointCloud<briskDepth> b)
+pcl::PointCloud<briskDepth> BDMatch(pcl::PointCloud<briskDepth> a, pcl::PointCloud<briskDepth> b)
 {
-
+    pcl::PointCloud<briskDepth> pclMatch;
     try
     {
         cv::Mat descriptorsA;
@@ -102,14 +102,20 @@ void BDMatch(pcl::PointCloud<briskDepth> a, pcl::PointCloud<briskDepth> b)
             if(min_dist>dist) min_dist = dist;
         }
 
+        std::cout << " Brisk max dist " << max_dist << std::endl;
+        std::cout << " Brisk mins dist " << min_dist << std::endl;
+
         std::vector< cv::DMatch > good_matches;
 
         for (int i=0;i<descriptorsA.rows;i++)
         {
-            if( matches[i].distance<3*min_dist)
-            good_matches.push_back(matches[i]);
+            //if( matches[i].distance<5*min_dist)
+            if( matches[i].distance<max_dist/2)
+            {
+                good_matches.push_back(matches[i]);
+                pclMatch.push_back(a[i]);
+            }
         }
-
         std::cout << good_matches.size() << " Brisk features matched from, " << a.size() << ", " << b.size() << " sets." << std::endl;
     }
     catch (const std::exception &exc)
@@ -117,4 +123,5 @@ void BDMatch(pcl::PointCloud<briskDepth> a, pcl::PointCloud<briskDepth> b)
         // catch anything thrown within try block that derives from std::exception
         std::cerr << exc.what();
     }
+    return pclMatch;
 }

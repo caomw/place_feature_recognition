@@ -103,9 +103,9 @@ pcl::PointCloud<surfDepth> depthSurf(const sensor_msgs::ImageConstPtr& msg, cons
     return depthFeatures;
 }
 
-void SDMatch(pcl::PointCloud<surfDepth> a, pcl::PointCloud<surfDepth> b)
+pcl::PointCloud<surfDepth> SDMatch(pcl::PointCloud<surfDepth> a, pcl::PointCloud<surfDepth> b)
 {
-
+    pcl::PointCloud<surfDepth> pclMatch;
     try
     {
         cv::Mat descriptorsA;
@@ -132,14 +132,21 @@ void SDMatch(pcl::PointCloud<surfDepth> a, pcl::PointCloud<surfDepth> b)
             double dist = matches[i].distance;
             if(max_dist<dist) max_dist = dist;
             if(min_dist>dist) min_dist = dist;
+            std::cout << dist << "\t";
         }
+        std::cout << std::endl;
+        std::cout << " Surf max dist " << max_dist << std::endl;
+        std::cout << " Surf min dist " << min_dist << std::endl;
 
         std::vector< cv::DMatch > good_matches;
 
         for (int i=0;i<descriptorsA.rows;i++)
         {
-            if( matches[i].distance<3*min_dist)
-            good_matches.push_back(matches[i]);
+            if( matches[i].distance<0.12)
+            {
+                good_matches.push_back(matches[i]);
+                pclMatch.push_back(a[i]);
+            }
         }
 
         std::cout << good_matches.size() << " Surf features matched from, " << a.size() << ", " << b.size() << " sets." << std::endl;
@@ -149,6 +156,7 @@ void SDMatch(pcl::PointCloud<surfDepth> a, pcl::PointCloud<surfDepth> b)
         // catch anything thrown within try block that derives from std::exception
         std::cerr << exc.what();
     }
+    return pclMatch;
 }
 
 

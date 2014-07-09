@@ -76,7 +76,7 @@ inline std::ostream& operator << (std::ostream& os, const surfDepth& p)
 
 pcl::PointCloud<surfDepth> GPUSurf(const sensor_msgs::ImageConstPtr&, const sensor_msgs::PointCloud2ConstPtr&, int);
 pcl::PointCloud<surfDepth> depthSurf(const sensor_msgs::ImageConstPtr&, const sensor_msgs::PointCloud2ConstPtr&, int);
-void SDMatch(pcl::PointCloud<surfDepth>, pcl::PointCloud<surfDepth>);
+pcl::PointCloud<surfDepth> SDMatch(pcl::PointCloud<surfDepth>, pcl::PointCloud<surfDepth>);
 void myicp(pcl::PointCloud<surfDepth>, pcl::PointCloud<surfDepth>);
 void ransac(pcl::PointCloud<surfDepth>, pcl::PointCloud<surfDepth>);
 //pcl::PointCloud<surfDepth> depthSurf(const sensor_msgs::ImageConstPtr&, const sensor_msgs::ImageConstPtr&, int);
