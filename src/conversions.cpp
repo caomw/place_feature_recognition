@@ -1,4 +1,5 @@
 #include "conversions.h"
+#include <math.h>
 
 sensor_msgs::Image conversions(cv::Mat mat)
 {
@@ -36,4 +37,56 @@ cv::Mat conversions(const sensor_msgs::ImageConstPtr& image)
         return x;
     }
     return cv_ptr->image;
+}
+
+double StdDeviation::CalculateMean()
+{
+    double sum = 0;
+    for(int i = 0; i < max; i++)
+    sum += value[i];
+    return (sum / max);
+}
+
+double StdDeviation::CalculateVariane()
+{
+    mean = CalculateMean();
+
+    double temp = 0;
+    for(int i = 0; i < max; i++)
+    {
+        temp += (value[i] - mean) * (value[i] - mean) ;
+    }
+    return temp / max;
+}
+
+double StdDeviation::CalculateSampleVariane()
+{
+    mean = CalculateMean();
+
+    double temp = 0;
+    for(int i = 0; i < max; i++)
+    {
+        temp += (value[i] - mean) * (value[i] - mean) ;
+    }
+    return temp / (max - 1);
+}
+
+int StdDeviation::SetValues(double *p, int count)
+{
+    if(count > 1000)
+    return -1;
+    max = count;
+    for(int i = 0; i < count; i++)
+        value[i] = p[i];
+    return 0;
+}
+
+double StdDeviation::GetStandardDeviation()
+{
+    return sqrt(CalculateVariane());
+}
+
+double StdDeviation::GetSampleStandardDeviation()
+{
+    return sqrt(CalculateSampleVariane());
 }

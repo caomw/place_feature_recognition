@@ -31,9 +31,10 @@ pcl::PointCloud<surfDepth>  lastSurf;
 pcl::PointCloud<briskDepth> lastBrisk;
 
 void callback(const sensor_msgs::ImageConstPtr &image,  const sensor_msgs::PointCloud2ConstPtr &depth,
-              ros::NodeHandle *nh, ros::Publisher *spub, ros::Publisher *bpub)
+              ros::NodeHandle *nh, ros::Publisher *spub, ros::Publisher *bpub, ros::Publisher *cpub)
 {
     // Advertise topics
+    *cpub = nh->advertise<pcl::PointCloud<surfDepth> > ("/cloud",1);
     *spub = nh->advertise<pcl::PointCloud<surfDepth> > ("/camera/depth/surf", 1);
     *bpub = nh->advertise<pcl::PointCloud<surfDepth> > ("/camera/depth/brisk",1);
 
@@ -76,10 +77,13 @@ tempSurf = SDMatch(lastSurf, dimensionalSurf);
     }
     tempBrisk.header.stamp = time_st.toNSec()/1e3;
     tempBrisk.header.frame_id  = depth->header.frame_id ;
-    bpub->publish(tempBrisk);
+
     tempSurf.header.stamp = time_st.toNSec()/1e3;
     tempSurf.header.frame_id  = depth->header.frame_id ;
+
+    bpub->publish(tempBrisk);
     spub->publish(tempSurf);
+    cpub->publish(depth);
     lastSurf = dimensionalSurf;
     lastBrisk = dimensionalBrisk;
 
@@ -89,6 +93,7 @@ int main (int argc, char** argv)
 {
     ros::init(argc, argv, "hole_detection");
     std::cout << "Running\n";
+    ros::Publisher cloud;
     ros::Publisher surfPub;
     ros::Publisher briskPub;
 
@@ -99,7 +104,7 @@ int main (int argc, char** argv)
     typedef sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::PointCloud2> MySyncPolicy;
     // ApproximateTime takes a queue size as its constructor argument, hence MySyncPolicy(10)
     Synchronizer<MySyncPolicy> sync(MySyncPolicy(1), image_sub, depth_sub);
-    sync.registerCallback(boost::bind(&callback, _1, _2, &nh, &briskPub, &surfPub));
+    sync.registerCallback(boost::bind(&callback, _1, _2, &nh, &briskPub, &surfPub, &cloud));
 
     ros::spin();
 

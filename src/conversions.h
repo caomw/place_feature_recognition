@@ -11,4 +11,23 @@
 sensor_msgs::Image conversions(cv::Mat mat);
 cv::Mat conversions(const sensor_msgs::ImageConstPtr&);
 
+class StdDeviation
+{
+
+private:
+    int max;
+    double value[1000];
+    double mean;
+
+public:
+    double CalculateMean();
+    double CalculateVariane();
+    double CalculateSampleVariane();
+    int SetValues(double *, int);
+    double GetStandardDeviation();
+    double GetSampleStandardDeviation();
+};
+
+
 #endif
+

@@ -127,29 +127,49 @@ pcl::PointCloud<surfDepth> SDMatch(pcl::PointCloud<surfDepth> a, pcl::PointCloud
 
         double max_dist = 0; double min_dist = 1000;
 
+        StdDeviation sd;
+        double temp[descriptorsA.rows];
+
         for (int i =0; i < descriptorsA.rows;i++)
         {
             double dist = matches[i].distance;
             if(max_dist<dist) max_dist = dist;
             if(min_dist>dist) min_dist = dist;
-            std::cout << dist << "\t";
+            //std::cout << dist << "\t";
+            temp[i] = dist;
         }
-        std::cout << std::endl;
-        std::cout << " Surf max dist " << max_dist << std::endl;
-        std::cout << " Surf min dist " << min_dist << std::endl;
+
+        //std::cout << std::endl;
+        //std::cout << " Surf max dist " << max_dist << std::endl;
+        //std::cout << " Surf min dist " << min_dist << std::endl;
+
+        sd.SetValues(temp, descriptorsA.rows);
+
+        double mean = sd.CalculateMean();
+        double variance = sd.CalculateVariane();
+        double samplevariance = sd.CalculateSampleVariane();
+        double sampledevi = sd.GetSampleStandardDeviation();
+        double devi = sd.GetStandardDeviation();
+
+        std::cout << descriptorsA.rows << "\t"
+                << mean << "\t"
+                << variance << "\t"
+                << samplevariance << "\t"
+                << devi << "\t"
+                << sampledevi << "\n";
 
         std::vector< cv::DMatch > good_matches;
 
         for (int i=0;i<descriptorsA.rows;i++)
         {
-            if( matches[i].distance<0.12)
+            if( matches[i].distance<mean)
             {
                 good_matches.push_back(matches[i]);
                 pclMatch.push_back(a[i]);
             }
         }
 
-        std::cout << good_matches.size() << " Surf features matched from, " << a.size() << ", " << b.size() << " sets." << std::endl;
+        //std::cout << good_matches.size() << " Surf features matched from, " << a.size() << ", " << b.size() << " sets." << std::endl;
     }
     catch (const std::exception &exc)
     {
