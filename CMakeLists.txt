@@ -153,6 +153,8 @@ add_executable(comparison
     src/visualise.cpp
     src/features.cpp
         src/3Dsurf.cpp	
+	src/3Dbrief.cpp	
+	src/3Dsift.cpp	
 	src/3Dbrisk.cpp	
 )
 

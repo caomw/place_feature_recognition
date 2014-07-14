@@ -8,7 +8,9 @@
 #include "visualise.h"
 
 #include "3Dsurf.h"
+#include "3Dsift.h"
 #include "3Dbrisk.h"
+#include "3Dbrief.h"
 #include <rosbag/bag.h>
 #include <rosbag/view.h>
 #include <boost/foreach.hpp>
@@ -28,7 +30,9 @@ using namespace std;
 using namespace message_filters;
 
 pcl::PointCloud<surfDepth>  lastSurf;
+pcl::PointCloud<siftDepth>  lastSift;
 pcl::PointCloud<briskDepth> lastBrisk;
+pcl::PointCloud<briefDepth> lastBrief;
 
 void callback(const sensor_msgs::ImageConstPtr &image,  const sensor_msgs::PointCloud2ConstPtr &depth,
               ros::NodeHandle *nh, ros::Publisher *spub, ros::Publisher *bpub, ros::Publisher *cpub)
@@ -40,8 +44,11 @@ void callback(const sensor_msgs::ImageConstPtr &image,  const sensor_msgs::Point
 
     // Get 3D Features
     GPUSurf(image, depth, 400);
-    pcl::PointCloud<surfDepth> dimensionalSurf = depthSurf(image, depth, 400);
-    pcl::PointCloud<briskDepth> dimensionalBrisk = depthBrisk(image, depth);
+    pcl::PointCloud<surfDepth>  dimensionalSurf =   depthSurf(image, depth, 400);
+    pcl::PointCloud<siftDepth>  dimensionalSift =   depthSift(image, depth, 400);
+    pcl::PointCloud<briskDepth> dimensionalBrisk =  depthBrisk(image, depth);
+    pcl::PointCloud<briefDepth> dimensionalBrief =  depthBrief(image, depth);
+
     pcl::PointCloud<surfDepth> tempSurf;
     pcl::PointCloud<briskDepth> tempBrisk;
 
@@ -53,8 +60,6 @@ void callback(const sensor_msgs::ImageConstPtr &image,  const sensor_msgs::Point
     dimensionalBrisk.header.stamp = time_st.toNSec()/1e3;
     dimensionalBrisk.header.frame_id  = depth->header.frame_id ;
 
-
-
     // Publish custom Surf feature message
     //spub->publish (dimensionalSurf);
     //bpub->publish (dimensionalBrisk);
@@ -64,29 +69,35 @@ void callback(const sensor_msgs::ImageConstPtr &image,  const sensor_msgs::Point
     //std::cout << "\e[A";
 
     // atempt compare
+
+
     if(lastSurf.size() > 0 && dimensionalSurf.size() > 0)
     {
-        //std::cout << lastSurf.size() << "\t" <<  dimensionalSurf.size() << std::endl;
-        //SDMatch(lastSurf, dimensionalSurf);
+        // get Matches
         tempBrisk = BDMatch(lastBrisk, dimensionalBrisk);
-tempSurf = SDMatch(lastSurf, dimensionalSurf);
+        //tempSurf = SDMatch(lastSurf, dimensionalSurf);
+        SDMatch(lastSurf, dimensionalSurf);
+        siftDMatch(lastSift, dimensionalSift);
+        briefDMatch(lastBrief, dimensionalBrief);
         //myicp(lastSurf, dimensionalSurf);
-    }else
+    }
+    else
     {
         std::cout << "First loop " << dimensionalSurf.size() << " Surf, " << dimensionalBrisk.size() << " Brisk features.\n";
     }
     tempBrisk.header.stamp = time_st.toNSec()/1e3;
     tempBrisk.header.frame_id  = depth->header.frame_id ;
 
-    tempSurf.header.stamp = time_st.toNSec()/1e3;
-    tempSurf.header.frame_id  = depth->header.frame_id ;
+    //tempSurf.header.stamp = time_st.toNSec()/1e3;
+    //tempSurf.header.frame_id  = depth->header.frame_id ;
 
     bpub->publish(tempBrisk);
-    spub->publish(tempSurf);
+    //spub->publish(tempSurf);
     cpub->publish(depth);
     lastSurf = dimensionalSurf;
+    lastSift = dimensionalSift;
     lastBrisk = dimensionalBrisk;
-
+    lastBrief = dimensionalBrief;
 }
 
 int main (int argc, char** argv)

@@ -1,20 +1,19 @@
+#include "3Dbrief.h"
 #include "3Dbrisk.h"
 #include "conversions.h"
 #include "visualise.h"
 #include <stdlib.h>
 #include <math.h>
 
-visualisation BVisualiser("Brisk");
+cv::Mat brief_currentImg, brief_lastImg;
+std::vector<cv::KeyPoint> brief_currentKeypoints, brief_lastKeypoints;
 
-cv::Mat brisk_currentImg, brisk_lastImg;
-std::vector<cv::KeyPoint> brisk_currentKeypoints, brisk_lastKeypoints;
-
-pcl::PointCloud<briskDepth> depthBrisk(const sensor_msgs::ImageConstPtr& msg, const sensor_msgs::PointCloud2ConstPtr &depth)
+pcl::PointCloud<briefDepth> depthBrief(const sensor_msgs::ImageConstPtr& msg, const sensor_msgs::PointCloud2ConstPtr &depth)
 {
-    pcl::PointCloud<briskDepth> depthFeatures;
+    pcl::PointCloud<briefDepth> depthFeatures;
 
     cv::Mat image(conversions(msg));
-    briskStruct briskObj;
+    briefStruct briefObj;
 
     if(msg->encoding != "bgr8" )
     {
@@ -38,48 +37,48 @@ pcl::PointCloud<briskDepth> depthBrisk(const sensor_msgs::ImageConstPtr& msg, co
     // Detect the keypoints using traditional BRISK Detector
     cv::BRISK briskDetector(Thresh, Octave,PatternScales);
     briskDetector.create("Feature2D.BRISK");
-    briskDetector.detect(image, briskObj.keypoints);
+    briskDetector.detect(image, briefObj.keypoints);
 
-    // Extract Features
-    briskDetector.compute(image, briskObj.keypoints, briskObj.descriptors);
+    cv::BriefDescriptorExtractor extractor;
 
-    s = briskObj.descriptors.size();
+    extractor.compute(image, briefObj.keypoints, briefObj.descriptors);
+
+    s = briefObj.descriptors.size();
     if(s.height < 1)return depthFeatures;
 
     // Start Conversion to 3D
     for(int i = 0; i < s.height; i++)
     {
-        int x = round(briskObj.keypoints[i].pt.x);
-        int y = round(briskObj.keypoints[i].pt.y);
+        int x = round(briefObj.keypoints[i].pt.x);
+        int y = round(briefObj.keypoints[i].pt.y);
 
         // only permit featrues where range can be extracted
         if(!isnan(depthPoints.points[depthPoints.width*y+x].x) && !isnan(depthPoints.points[depthPoints.width*y+x].x) && !isnan(depthPoints.points[depthPoints.width*y+x].x))
         {
-            briskDepth temp;
+            briefDepth temp;
 
             temp.x = depthPoints.points[depthPoints.width*y+x].x;
             temp.y = depthPoints.points[depthPoints.width*y+x].y;
             temp.z = depthPoints.points[depthPoints.width*y+x].z;
 
-            temp.descriptor = briskObj.descriptors.row(i);
+            temp.descriptor = briefObj.descriptors.row(i);
             depthFeatures.push_back(temp);
         }
     }
 
-    BVisualiser.visualise(briskObj.keypoints, image);
-    cv::waitKey(10);
+    //SVisualiser.visualise(briefObj.keypoints, image);
+    //cv::waitKey(10);
 
-    brisk_lastKeypoints = brisk_currentKeypoints;
-    brisk_lastImg = brisk_currentImg;
-    brisk_currentKeypoints = briskObj.keypoints;
-    brisk_currentImg = image;
-
+    brief_lastKeypoints = brief_currentKeypoints;
+    brief_lastImg = brief_currentImg;
+    brief_currentKeypoints = briefObj.keypoints;
+    brief_currentImg = image;
     return depthFeatures;
 }
 
-pcl::PointCloud<briskDepth> BDMatch(pcl::PointCloud<briskDepth> a, pcl::PointCloud<briskDepth> b)
+pcl::PointCloud<briefDepth> briefDMatch(pcl::PointCloud<briefDepth> a, pcl::PointCloud<briefDepth> b)
 {
-    pcl::PointCloud<briskDepth> pclMatch;
+    pcl::PointCloud<briefDepth> pclMatch;
     try
     {
         cv::Mat descriptorsA;
@@ -144,13 +143,12 @@ pcl::PointCloud<briskDepth> BDMatch(pcl::PointCloud<briskDepth> a, pcl::PointClo
         }
 
         cv::Mat img_matches;
-        cv::drawMatches( brisk_lastImg, brisk_lastKeypoints, brisk_currentImg, brisk_lastKeypoints,
+        cv::drawMatches( brief_lastImg, brief_lastKeypoints, brief_currentImg, brief_lastKeypoints,
                            good_matches, img_matches, cv::Scalar::all(-1), cv::Scalar::all(-1),
                            std::vector<char>(), cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS );
 
-        cv::imshow("Brisk Matches", img_matches);
+        cv::imshow("Brief Matches", img_matches);
         cv::waitKey(50);
-       // std::cout << good_matches.size() << " Brisk features matched from, " << a.size() << ", " << b.size() << " sets." << std::endl;
     }
     catch (const std::exception &exc)
     {

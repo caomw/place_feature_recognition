@@ -7,6 +7,9 @@
 // globallly initialise visualiser
 visualisation SVisualiser("Surf");
 
+cv::Mat currentImg, lastImg;
+std::vector<cv::KeyPoint> currentKeypoints, lastKeypoints;
+
 #include "opencv2/gpu/gpu.hpp"
 pcl::PointCloud<surfDepth> GPUSurf(const sensor_msgs::ImageConstPtr& msg, const sensor_msgs::PointCloud2ConstPtr &depth, int hessian)
 {
@@ -66,7 +69,8 @@ pcl::PointCloud<surfDepth> depthSurf(const sensor_msgs::ImageConstPtr& msg, cons
     pcl::fromROSMsg(*depth,depthPoints);
 
     // Detect the keypoints using SURF Detector
-    cv::SurfFeatureDetector detector(hessian);
+    //SURF(double hessianThreshold, int nOctaves=4, int nOctaveLayers=2, bool extended=true, bool upright=false )
+    cv::SurfFeatureDetector detector(hessian, 4, 2, true, true);
 
     detector.detect(image, surfObj.keypoints);
 
@@ -100,6 +104,11 @@ pcl::PointCloud<surfDepth> depthSurf(const sensor_msgs::ImageConstPtr& msg, cons
 
     //SVisualiser.visualise(surfObj.keypoints, image);
     //cv::waitKey(10);
+
+    lastKeypoints = currentKeypoints;
+    lastImg = currentImg;
+    currentKeypoints = surfObj.keypoints;
+    currentImg = image;
     return depthFeatures;
 }
 
@@ -120,7 +129,25 @@ pcl::PointCloud<surfDepth> SDMatch(pcl::PointCloud<surfDepth> a, pcl::PointCloud
             descriptorsB.push_back(b[i].descriptor);
         }
 
-        cv::BFMatcher matcher(cv::NORM_L2);
+        std::vector<std::vector <cv::DMatch> > matches;
+        cv::BFMatcher matcher;
+        matcher.knnMatch(descriptorsA, descriptorsB, matches, 2);
+        std::vector<cv::DMatch> good_matches;
+        for (int i = 0; i < matches.size(); ++i)
+        {
+            const float ratio = 0.7; // As in Lowe's paper; can be tuned
+            if((matches[i].size()==1)||(abs(matches[i][0].distance/matches[i][1].distance) < ratio))
+            {
+                good_matches.push_back(matches[i][0]);
+            }
+        }
+
+        std::cout << "\n"<<
+                     matches[0][0].distance << "\t" << matches[0][1].distance << std::endl <<
+                     matches[1][0].distance << "\t" << matches[1][1].distance << std::endl <<
+                     matches[2][0].distance << "\t" << matches[2][1].distance << std::endl << std::endl;
+        // find 3 best matching
+    /*    cv::FlannBasedMatcher matcher;
         std::vector< cv::DMatch > matches;
 
         matcher.match( descriptorsA, descriptorsB, matches );
@@ -129,6 +156,7 @@ pcl::PointCloud<surfDepth> SDMatch(pcl::PointCloud<surfDepth> a, pcl::PointCloud
 
         StdDeviation sd;
         double temp[descriptorsA.rows];
+
 
         for (int i =0; i < descriptorsA.rows;i++)
         {
@@ -139,7 +167,7 @@ pcl::PointCloud<surfDepth> SDMatch(pcl::PointCloud<surfDepth> a, pcl::PointCloud
             temp[i] = dist;
         }
 
-        //std::cout << std::endl;
+        //std::cout << "\n" << std::endl;
         //std::cout << " Surf max dist " << max_dist << std::endl;
         //std::cout << " Surf min dist " << min_dist << std::endl;
 
@@ -151,7 +179,7 @@ pcl::PointCloud<surfDepth> SDMatch(pcl::PointCloud<surfDepth> a, pcl::PointCloud
         double sampledevi = sd.GetSampleStandardDeviation();
         double devi = sd.GetStandardDeviation();
 
-        std::cout << descriptorsA.rows << "\t"
+        std::cout << "Surf\t" << descriptorsA.rows << "\t"
                 << mean << "\t"
                 << variance << "\t"
                 << samplevariance << "\t"
@@ -162,14 +190,23 @@ pcl::PointCloud<surfDepth> SDMatch(pcl::PointCloud<surfDepth> a, pcl::PointCloud
 
         for (int i=0;i<descriptorsA.rows;i++)
         {
-            if( matches[i].distance<mean)
+            //if( matches[i].distance < max_dist / 2)
+            if( matches[i].distance < 0.03)
             {
                 good_matches.push_back(matches[i]);
                 pclMatch.push_back(a[i]);
             }
         }
+        */
+        cv::Mat img_matches;
+        cv::drawMatches( lastImg, lastKeypoints, currentImg, lastKeypoints,
+                           good_matches, img_matches, cv::Scalar::all(-1), cv::Scalar::all(-1),
+                           std::vector<char>(), cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS );
 
+        cv::imshow("Surf Matches", img_matches);
+        cv::waitKey(50);
         //std::cout << good_matches.size() << " Surf features matched from, " << a.size() << ", " << b.size() << " sets." << std::endl;
+
     }
     catch (const std::exception &exc)
     {

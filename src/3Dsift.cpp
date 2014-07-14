@@ -1,20 +1,19 @@
+#include "3Dsift.h"
 #include "3Dbrisk.h"
 #include "conversions.h"
 #include "visualise.h"
 #include <stdlib.h>
 #include <math.h>
 
-visualisation BVisualiser("Brisk");
+cv::Mat sift_currentImg, sift_lastImg;
+std::vector<cv::KeyPoint> sift_currentKeypoints, sift_lastKeypoints;
 
-cv::Mat brisk_currentImg, brisk_lastImg;
-std::vector<cv::KeyPoint> brisk_currentKeypoints, brisk_lastKeypoints;
-
-pcl::PointCloud<briskDepth> depthBrisk(const sensor_msgs::ImageConstPtr& msg, const sensor_msgs::PointCloud2ConstPtr &depth)
+pcl::PointCloud<siftDepth> depthSift(const sensor_msgs::ImageConstPtr& msg, const sensor_msgs::PointCloud2ConstPtr &depth, int hessian)
 {
-    pcl::PointCloud<briskDepth> depthFeatures;
+    pcl::PointCloud<siftDepth> depthFeatures;
 
     cv::Mat image(conversions(msg));
-    briskStruct briskObj;
+    siftStruct siftObj;
 
     if(msg->encoding != "bgr8" )
     {
@@ -37,49 +36,51 @@ pcl::PointCloud<briskDepth> depthBrisk(const sensor_msgs::ImageConstPtr& msg, co
 
     // Detect the keypoints using traditional BRISK Detector
     cv::BRISK briskDetector(Thresh, Octave,PatternScales);
-    briskDetector.create("Feature2D.BRISK");
-    briskDetector.detect(image, briskObj.keypoints);
+    briskDetector.create("Feature2D.SIFT");
+    briskDetector.detect(image, siftObj.keypoints);
 
-    // Extract Features
-    briskDetector.compute(image, briskObj.keypoints, briskObj.descriptors);
+    // Calculate descriptors (feature vectors)
+    cv::SiftDescriptorExtractor extractor;
+    extractor.compute( image, siftObj.keypoints, siftObj.descriptors);
 
-    s = briskObj.descriptors.size();
+    s = siftObj.descriptors.size();
     if(s.height < 1)return depthFeatures;
+
 
     // Start Conversion to 3D
     for(int i = 0; i < s.height; i++)
     {
-        int x = round(briskObj.keypoints[i].pt.x);
-        int y = round(briskObj.keypoints[i].pt.y);
+        int x = round(siftObj.keypoints[i].pt.x);
+        int y = round(siftObj.keypoints[i].pt.y);
 
         // only permit featrues where range can be extracted
         if(!isnan(depthPoints.points[depthPoints.width*y+x].x) && !isnan(depthPoints.points[depthPoints.width*y+x].x) && !isnan(depthPoints.points[depthPoints.width*y+x].x))
         {
-            briskDepth temp;
+            siftDepth temp;
 
             temp.x = depthPoints.points[depthPoints.width*y+x].x;
             temp.y = depthPoints.points[depthPoints.width*y+x].y;
             temp.z = depthPoints.points[depthPoints.width*y+x].z;
 
-            temp.descriptor = briskObj.descriptors.row(i);
+            temp.descriptor = siftObj.descriptors.row(i);
             depthFeatures.push_back(temp);
         }
     }
 
-    BVisualiser.visualise(briskObj.keypoints, image);
-    cv::waitKey(10);
+    //SVisualiser.visualise(siftObj.keypoints, image);
+    //cv::waitKey(10);
 
-    brisk_lastKeypoints = brisk_currentKeypoints;
-    brisk_lastImg = brisk_currentImg;
-    brisk_currentKeypoints = briskObj.keypoints;
-    brisk_currentImg = image;
+    sift_lastKeypoints = sift_currentKeypoints;
+    sift_lastImg = sift_currentImg;
+    sift_currentKeypoints = siftObj.keypoints;
+    sift_currentImg = image;
 
     return depthFeatures;
 }
 
-pcl::PointCloud<briskDepth> BDMatch(pcl::PointCloud<briskDepth> a, pcl::PointCloud<briskDepth> b)
+pcl::PointCloud<siftDepth> siftDMatch(pcl::PointCloud<siftDepth> a, pcl::PointCloud<siftDepth> b)
 {
-    pcl::PointCloud<briskDepth> pclMatch;
+    pcl::PointCloud<siftDepth> pclMatch;
     try
     {
         cv::Mat descriptorsA;
@@ -94,10 +95,22 @@ pcl::PointCloud<briskDepth> BDMatch(pcl::PointCloud<briskDepth> a, pcl::PointClo
             descriptorsB.push_back(b[i].descriptor);
         }
 
-        cv::BFMatcher matcher(cv::NORM_HAMMING);
-        std::vector< cv::DMatch > matches;
-
-        matcher.match( descriptorsA, descriptorsB, matches );
+        std::vector< std::vector < cv::DMatch > > matches;
+        cv::BFMatcher matcher(cv::NORM_L2);
+        matcher.knnMatch(descriptorsA, descriptorsB, matches, 2);  // Find two nearest matches
+        std::vector<cv::DMatch> good_matches;
+        for (int i = 0; i < matches.size(); ++i)
+        {
+            const float ratio = 0.7; // As in Lowe's paper; can be tuned
+            if (matches[i][0].distance < ratio * matches[i][1].distance)
+            {
+                good_matches.push_back(matches[i][0]);
+            }
+        }
+/*
+        cv::BFMatcher matcher(cv::NORM_L2);
+        std::vector<cv::DMatch> matches;
+        matcher.match(descriptorsA, descriptorsB, matches);
 
         double max_dist = 0; double min_dist = 1000;
 
@@ -113,9 +126,9 @@ pcl::PointCloud<briskDepth> BDMatch(pcl::PointCloud<briskDepth> a, pcl::PointClo
             temp[i] = dist;
         }
 
-       // std::cout << std::endl;
-       // std::cout << " Brisk max dist " << max_dist << std::endl;
-       // std::cout << " Brisk mins dist " << min_dist << std::endl;
+        //std::cout << std::endl;
+       // std::cout << " sift max dist " << max_dist << std::endl;
+       // std::cout << " sift mins dist " << min_dist << std::endl;
 
         sd.SetValues(temp, descriptorsA.rows);
 
@@ -125,7 +138,7 @@ pcl::PointCloud<briskDepth> BDMatch(pcl::PointCloud<briskDepth> a, pcl::PointClo
         double sampledevi = sd.GetSampleStandardDeviation();
         double devi = sd.GetStandardDeviation();
 
-        std::cout << "Brisk\t" << descriptorsA.rows << "\t"
+        std::cout << "Sift\t" << descriptorsA.rows << "\t"
                 << mean << "\t"
                 << variance << "\t"
                 << samplevariance << "\t"
@@ -136,21 +149,22 @@ pcl::PointCloud<briskDepth> BDMatch(pcl::PointCloud<briskDepth> a, pcl::PointClo
 
         for (int i=0;i<descriptorsA.rows;i++)
         {
-            if( matches[i].distance<max_dist/2)
+            if( matches[i].distance< 30)
             {
                 good_matches.push_back(matches[i]);
                 pclMatch.push_back(a[i]);
             }
         }
-
+*/
         cv::Mat img_matches;
-        cv::drawMatches( brisk_lastImg, brisk_lastKeypoints, brisk_currentImg, brisk_lastKeypoints,
+        cv::drawMatches( sift_lastImg, sift_lastKeypoints, sift_currentImg, sift_lastKeypoints,
                            good_matches, img_matches, cv::Scalar::all(-1), cv::Scalar::all(-1),
                            std::vector<char>(), cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS );
 
-        cv::imshow("Brisk Matches", img_matches);
+        cv::imshow("sift Matches", img_matches);
         cv::waitKey(50);
-       // std::cout << good_matches.size() << " Brisk features matched from, " << a.size() << ", " << b.size() << " sets." << std::endl;
+       // std::cout << good_matches.size() << " sift features matched from, " << a.size() << ", " << b.size() << " sets." << std::endl;
+
     }
     catch (const std::exception &exc)
     {
