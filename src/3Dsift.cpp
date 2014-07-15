@@ -101,7 +101,7 @@ pcl::PointCloud<siftDepth> siftDMatch(pcl::PointCloud<siftDepth> a, pcl::PointCl
         std::vector<cv::DMatch> good_matches;
         for (int i = 0; i < matches.size(); ++i)
         {
-            const float ratio = 0.7; // As in Lowe's paper; can be tuned
+            const float ratio = 0.7; // As in Lowe's paper;
             if (matches[i][0].distance < ratio * matches[i][1].distance)
             {
                 good_matches.push_back(matches[i][0]);

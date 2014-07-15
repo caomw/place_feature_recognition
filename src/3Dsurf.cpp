@@ -32,10 +32,37 @@ pcl::PointCloud<surfDepth> GPUSurf(const sensor_msgs::ImageConstPtr& msg, const 
     pcl::PointCloud< pcl::PointXYZ > depthPoints;
     pcl::fromROSMsg(*depth,depthPoints);
 
-    // Detect the keypoints using SURF Detector
-    cv::SurfFeatureDetector detector(hessian);
+    // Detect the keypoints using Star Detector
+    int maxSize=16;
+    int responseThreshold=30;
+    int lineThresholdProjected = 10;
+    int lineThresholdBinarized=8;
+    int suppressNonmaxSize=5;
 
-    detector.detect(image, surfObj.keypoints);
+    //cv::StarFeatureDetector starDetector(maxSize, responseThreshold, lineThresholdProjected, lineThresholdBinarized, suppressNonmaxSize);
+    //starDetector.detect(image, surfObj.keypoints);
+
+    // Assigning stable BRISK constants
+    int Thresh = 30;
+    int Octave = 3;
+    float PatternScales=1.0f;
+
+    //briskDetector.create("Feature2D.SURF");
+    //briskDetector.detect(image, surfObj.keypoints);
+    //cv::BRISK briskDetector(Thresh, Octave,PatternScales);
+
+    int nfeatures=500;
+    float scaleFactor=1.2f;
+    int nlevels=8;
+    int edgeThreshold=31;
+    int firstLevel=0;
+    int WTA_K=2;
+    int scoreType=cv::ORB::HARRIS_SCORE;
+    int patchSize=31;
+
+    cv::ORB orbDetector(nfeatures, scaleFactor, nlevels, edgeThreshold, firstLevel, WTA_K, scoreType, patchSize);
+    orbDetector.create("Feature2D.ORB");
+    orbDetector.detect(image, surfObj.keypoints);
 
     // Calculate descriptors (feature vectors)
     cv::SurfDescriptorExtractor extractor;
@@ -135,14 +162,15 @@ pcl::PointCloud<surfDepth> SDMatch(pcl::PointCloud<surfDepth> a, pcl::PointCloud
         std::vector<cv::DMatch> good_matches;
         for (int i = 0; i < matches.size(); ++i)
         {
-            const float ratio = 0.7; // As in Lowe's paper; can be tuned
-            if((matches[i].size()==1)||(abs(matches[i][0].distance/matches[i][1].distance) < ratio))
+            const float ratio = 0.02; // As in Lowe's paper;
+            if (matches[i][0].distance < ratio )
             {
+                std::cout << matches[i][0].distance << "\t";
                 good_matches.push_back(matches[i][0]);
             }
         }
 
-        std::cout << "\n"<<
+        std::cout << "\n\n"<<
                      matches[0][0].distance << "\t" << matches[0][1].distance << std::endl <<
                      matches[1][0].distance << "\t" << matches[1][1].distance << std::endl <<
                      matches[2][0].distance << "\t" << matches[2][1].distance << std::endl << std::endl;
