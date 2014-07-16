@@ -158,6 +158,12 @@ add_executable(comparison
 	src/3Dbrisk.cpp	
 )
 
+add_executable(quickTest 
+    src/quickTest.cpp
+    src/conversions.cpp
+)
+
+
 ## Add cmake target dependencies of the executable/library
 ## as an example, message headers may need to be generated before nodes
 # add_dependencies(narf_features_node narf_features_generate_messages_cpp)
@@ -170,6 +176,13 @@ target_link_libraries(featureExtractor
 )
 
 target_link_libraries(comparison
+   ${catkin_LIBRARIES}
+   ${PCL_LIBRARIES}
+   ${OpenCV_LIBRARIES}
+)
+
+
+target_link_libraries(quickTest
    ${catkin_LIBRARIES}
    ${PCL_LIBRARIES}
    ${OpenCV_LIBRARIES}

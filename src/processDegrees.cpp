@@ -44,11 +44,10 @@ void callback(const sensor_msgs::ImageConstPtr &image,  const sensor_msgs::Point
 
     // Get 3D Features
     GPUSurf(image, depth, 400);
-    pcl::PointCloud<briskDepth> dimensionalBrisk =  depthBrisk(image, depth);
-
-    pcl::PointCloud<surfDepth>  dimensionalSurf;// =   depthSurf(image, depth, 400);
+    pcl::PointCloud<surfDepth>  dimensionalSurf =   depthSurf(image, depth, 400);
     pcl::PointCloud<siftDepth>  dimensionalSift =   depthSift(image, depth, 400);
-    pcl::PointCloud<briefDepth> dimensionalBrief;// =  depthBrief(image, depth);
+    pcl::PointCloud<briskDepth> dimensionalBrisk =  depthBrisk(image, depth);
+    pcl::PointCloud<briefDepth> dimensionalBrief =  depthBrief(image, depth);
 
     pcl::PointCloud<surfDepth> tempSurf;
     pcl::PointCloud<briskDepth> tempBrisk;
@@ -72,16 +71,15 @@ void callback(const sensor_msgs::ImageConstPtr &image,  const sensor_msgs::Point
     // atempt compare
 
 
-    if(lastBrisk.size() > 0 && dimensionalBrisk.size() > 0)
+    if(lastSurf.size() > 0 && dimensionalSurf.size() > 0)
     {
         // get Matches
         tempBrisk = BDMatch(lastBrisk, dimensionalBrisk);
-        siftDMatch(lastSift, dimensionalSift);
         //tempSurf = SDMatch(lastSurf, dimensionalSurf);
-     /*   SDMatch(lastSurf, dimensionalSurf);
-
+        SDMatch(lastSurf, dimensionalSurf);
+        siftDMatch(lastSift, dimensionalSift);
         briefDMatch(lastBrief, dimensionalBrief);
-       */ //myicp(lastSurf, dimensionalSurf);
+        //myicp(lastSurf, dimensionalSurf);
     }
     else
     {
@@ -96,7 +94,6 @@ void callback(const sensor_msgs::ImageConstPtr &image,  const sensor_msgs::Point
     bpub->publish(tempBrisk);
     //spub->publish(tempSurf);
     cpub->publish(depth);
-
     lastSurf = dimensionalSurf;
     lastSift = dimensionalSift;
     lastBrisk = dimensionalBrisk;
