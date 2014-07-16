@@ -6,8 +6,12 @@
 #include "opencv2/highgui/highgui.hpp"
 #include "opencv2/nonfree/features2d.hpp"
 #include "opencv2/calib3d/calib3d.hpp"
-
+#include "opencv2/imgproc/imgproc.hpp"
+#include <math.h>
 #include "conversions.h"
+
+const int width_degree  = 57;
+const int height_degree = 43;
 
 class Kinect {
 
@@ -21,6 +25,8 @@ class Kinect {
 
             this->n = *_n;
             this->sub = this->n.subscribe("/camera/rgb/image_color", 1, &Kinect::callBack, this);
+            //this->sub = this->n.subscribe("/ptu_sweep/rgb/image_color", 1, &Kinect::callBack, this);
+            count == 0;
         }
 
         void callBack(const sensor_msgs::ImageConstPtr& img)
@@ -38,8 +44,18 @@ class Kinect {
                 first_keypoints = keypoints;
                 first_descriptors = descriptors;
                 initialising = false;
+
+                /*
+                first_keypoints = lastK;
+                first_descriptors = lastD;
+                first_img = lastI;
+                lastI = conversions(img);
+                lastK = keypoints;
+                lastD = descriptors;
+                initialising = false;
+                */
             }
-            else    // perform Match
+            else    // perform Match //if(count > 0)
             {
                 std::vector< cv::DMatch > matches;
                 matcher.match( first_descriptors, descriptors, matches );
@@ -82,6 +98,14 @@ class Kinect {
 
                   cv::Mat H = cv::findHomography( obj, scene, CV_RANSAC );
 
+                  cv::Mat result;
+                  warpPerspective(first_img,result,H,cv::Size(first_img.cols+image.cols,first_img.rows));
+                  cv::Mat half(result,cv::Rect(0,0,image.cols,image.rows));
+                  image.copyTo(half);
+                  cv::imshow( "Result", result );
+
+                  cv::waitKey(10);
+
                   //-- Get the corners from the image_1 ( the object to be "detected" )
                   std::vector<cv::Point2f> obj_corners(4);
                   obj_corners[0] = cvPoint(0,0); obj_corners[1] = cvPoint( first_img.cols, 0 );
@@ -100,10 +124,27 @@ class Kinect {
                   imshow( "Good Matches & Object detection", img_matches );
 
                   cv::waitKey(10);
+
+                  float angle = 640 /57;
+                  // lets try getting some angles
+                  for(int i  = 0; i < good_matches.size(); i++)
+                  {
+                      float mytemp = (scene[i].x-320)/angle;
+
+                      if(floor(mytemp)==27)
+                      {
+                        std::cout << mytemp << "°\t";
+                      }
+                      if(ceil(mytemp)==-27)
+                      {
+                        std::cout << mytemp << "°\t";
+                      }
+                  }std::cout << std::endl;
+
+
             }
-
+            count++;
         }
-
 
 
 protected:
@@ -118,10 +159,12 @@ protected:
         cv::Mat first_img, first_descriptors;
         std::vector<cv::KeyPoint> first_keypoints;
         bool initialising;
+        int count;
 };
 
 int main(int argc, char **argv)
 {
+
     ros::init(argc, argv, "Surf");
     ros::NodeHandle n;
 
