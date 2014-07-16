@@ -13,6 +13,8 @@
 const int width_degree  = 57;
 const int height_degree = 43;
 
+#define PI 3.14159265;
+
 class Kinect {
 
     public:
@@ -74,7 +76,7 @@ class Kinect {
 
                 for( int i = 0; i < first_descriptors.rows; i++ )
                 {
-                    if( matches[i].distance < 3*min_dist )
+                    if( matches[i].distance <= 3*min_dist )
                     {
                         good_matches.push_back( matches[i]);
                     }
@@ -84,7 +86,7 @@ class Kinect {
                 cv::drawMatches( first_img, first_keypoints, image, keypoints,
                              good_matches, img_matches, cv::Scalar::all(-1), cv::Scalar::all(-1),
                              std::vector<char>(), cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS );
-
+cv::imshow("Surf Matches", img_matches);
                 //-- Localize the object
                   std::vector<cv::Point2f> obj;
                   std::vector<cv::Point2f> scene;
@@ -96,7 +98,10 @@ class Kinect {
                     scene.push_back( keypoints[ good_matches[i].trainIdx ].pt );
                   }
 
+/*
                   cv::Mat H = cv::findHomography( obj, scene, CV_RANSAC );
+
+
 
                   cv::Mat result;
                   warpPerspective(first_img,result,H,cv::Size(first_img.cols+image.cols,first_img.rows));
@@ -122,16 +127,23 @@ class Kinect {
 
                   //-- Show detected matches
                   imshow( "Good Matches & Object detection", img_matches );
-
+*/
                   cv::waitKey(10);
+
+                float  mytemp, result;
 
                   float angle = 640 /57;
                   // lets try getting some angles
-                  for(int i  = 0; i < good_matches.size(); i++)
-                  {
-                      float mytemp = (scene[i].x-320)/angle;
 
-                      if(floor(mytemp)==27)
+                int f = 589;// claims 525
+
+
+                //for(int i  = 0; i < good_matches.size(); i++)
+                for(int i  = 0; i < 4; i++)
+                {
+                      mytemp = atan((scene[i].x-320)/f) * 180 / PI;
+                       result = (scene[i].x-320)/angle;
+                      /*if(floor(mytemp)==27)
                       {
                         std::cout << mytemp << "°\t";
                       }
@@ -139,6 +151,7 @@ class Kinect {
                       {
                         std::cout << mytemp << "°\t";
                       }
+                      */std::cout << mytemp << "° - " << result << "°\t\t" ;
                   }std::cout << std::endl;
 
 
