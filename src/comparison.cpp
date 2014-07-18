@@ -118,7 +118,7 @@ int main (int argc, char** argv)
     typedef sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::PointCloud2> MySyncPolicy;
     // ApproximateTime takes a queue size as its constructor argument, hence MySyncPolicy(10)
     Synchronizer<MySyncPolicy> sync(MySyncPolicy(1), image_sub, depth_sub);
-    sync.registerCallback(boost::bind(&callback, _1, _2, &nh, &briskPub, &surfPub, &cloud));
+    sync.registerCallback(boost::bind(callback, _1, _2, &nh, &briskPub, &surfPub, &cloud));
 
     ros::spin();
 

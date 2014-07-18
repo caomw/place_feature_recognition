@@ -1,187 +1,194 @@
-    #include <ros/ros.h>
+#include <ros/ros.h>
 #include <sensor_msgs/Image.h>
 #include <iostream>
-#include "opencv2/core/core.hpp"
-#include "opencv2/features2d/features2d.hpp"
-#include "opencv2/highgui/highgui.hpp"
-#include "opencv2/nonfree/features2d.hpp"
-#include "opencv2/calib3d/calib3d.hpp"
-#include "opencv2/imgproc/imgproc.hpp"
+#include <opencv2/core/core.hpp>
+#include <opencv2/features2d/features2d.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/nonfree/features2d.hpp>
+#include <opencv2/calib3d/calib3d.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
 #include <math.h>
+#include <message_filters/subscriber.h>
+#include <message_filters/time_synchronizer.h>
+#include <message_filters/synchronizer.h>
+#include <message_filters/sync_policies/approximate_time.h>
+#include <sensor_msgs/Image.h>
+#include <sensor_msgs/PointCloud2.h>
+#include <sensor_msgs/JointState.h>
+#include <boost/foreach.hpp>
 #include "conversions.h"
-
-const int width_degree  = 57;
-const int height_degree = 43;
+#include <fstream>
 
 #define PI 3.14159265;
+typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::JointState> MySyncPolicy;
 
-class Kinect {
+struct feature_struct {
+    std::vector<cv::KeyPoint> keypoints;
+    cv::Mat descriptors;
+};
 
+class ptu_features
+{
     public:
-
-        Kinect(ros::NodeHandle* _n)
+        ptu_features()    // Constructor
         {
             detector.hessianThreshold = 400;
-
-            initialising = true;
-
-            this->n = *_n;
-            this->sub = this->n.subscribe("/camera/rgb/image_color", 1, &Kinect::callBack, this);
-            //this->sub = this->n.subscribe("/ptu_sweep/rgb/image_color", 1, &Kinect::callBack, this);
-            count == 0;
+            ptu_start_angle = 1000; // init to number greater than 0-360
+            feature_sphere.descriptors = cv::Mat::zeros(0, 64, CV_32F);
+            f = 589;                // claims 525
         }
 
-        void callBack(const sensor_msgs::ImageConstPtr& img)
+        void callback(const sensor_msgs::ImageConstPtr &img,  const sensor_msgs::JointStateConstPtr &ptu_state)
         {
-            cv::Mat descriptors, image(conversions(img));
+            std::cout << ".";
+            ptu_angle = ptu_state->position[0] * 60;                        // Joint state transformed into 360
+
+            if(ptu_start_angle == 1000)ptu_start_angle = ptu_angle;         // First run?
+
+            extractFeatures(conversions(img), feature_sphere, ptu_angle);   // Extract
+
+            if((ceil(ptu_angle / 10) * 10) == (ceil((ptu_start_angle*-1) / 10) * 10))   // completed
+            {
+                if(this->read_features.keypoints.size() > 1)
+                {
+                    match(read_features, feature_sphere);
+                }
+                else
+                {
+                    while(!save(feature_sphere));
+                    std::cout << "File Saved!" << std::endl;
+                }
+            }
+        }
+
+        void read(std::string fn)
+        {
+            if(fn.substr(fn.find_last_of(".") + 1) != "yml")
+            {
+                ROS_ERROR("Unable to convert none .yml file");
+                return;
+            }
+            char realFile[200];
+            strcpy(realFile, fn.c_str());
+            std::ifstream my_file(realFile);
+            if (!my_file) {
+                ROS_ERROR("Cannot Locate %s", realFile);
+                return;
+            }
+            else
+            {
+                cv::FileStorage fs2(fn, cv::FileStorage::READ);
+
+                fs2["descriptors"] >> this->read_features.descriptors;
+
+                cv::FileNode  kptFileNode1 = fs2["keypoints"];
+                cv::read( kptFileNode1, this->read_features.keypoints );
+
+                fs2.release();
+
+                std::cout << "Successfully Loaded " << this->read_features.keypoints.size() << " keypoints from "
+                          << fn << std::endl;
+            }
+        }
+
+private:
+
+        void extractFeatures(cv::Mat image, feature_struct &sphere, float angle)
+        {
+            cv::Mat descriptors;
             std::vector<cv::KeyPoint> keypoints;
 
             // detector && Extract surf
             detector.detect(image, keypoints);
             extractor.compute(image, keypoints, descriptors);
 
-            if(initialising)  // store initial sift
+            for(int i = 0; i < keypoints.size(); i++)
             {
-                first_img = conversions(img);
-                first_keypoints = keypoints;
-                first_descriptors = descriptors;
-                initialising = false;
-
-                /*
-                first_keypoints = lastK;
-                first_descriptors = lastD;
-                first_img = lastI;
-                lastI = conversions(img);
-                lastK = keypoints;
-                lastD = descriptors;
-                initialising = false;
-                */
+                keypoints[i].angle  = atan((keypoints[i].pt.x-320)/f) * 180 / PI;
+                keypoints[i].angle += angle;
             }
-            else    // perform Match //if(count > 0)
-            {
-                std::vector< cv::DMatch > matches;
-                matcher.match( first_descriptors, descriptors, matches );
 
-                double max_dist = 0; double min_dist = 100;
-
-                //-- Quick calculation of max and min distances between keypoints
-                for( int i = 0; i < first_descriptors.rows; i++ )
-                {
-                    double dist = matches[i].distance;
-                    if( dist < min_dist ) min_dist = dist;
-                    if( dist > max_dist ) max_dist = dist;
-                }
-
-                std::vector< cv::DMatch > good_matches;
-
-                for( int i = 0; i < first_descriptors.rows; i++ )
-                {
-                    if( matches[i].distance <= 3*min_dist )
-                    {
-                        good_matches.push_back( matches[i]);
-                    }
-                }
-
-                cv::Mat img_matches;
-                cv::drawMatches( first_img, first_keypoints, image, keypoints,
-                             good_matches, img_matches, cv::Scalar::all(-1), cv::Scalar::all(-1),
-                             std::vector<char>(), cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS );
-cv::imshow("Surf Matches", img_matches);
-                //-- Localize the object
-                  std::vector<cv::Point2f> obj;
-                  std::vector<cv::Point2f> scene;
-
-                  for( int i = 0; i < good_matches.size(); i++ )
-                  {
-                    //-- Get the keypoints from the good matches
-                    obj.push_back( first_keypoints[ good_matches[i].queryIdx ].pt );
-                    scene.push_back( keypoints[ good_matches[i].trainIdx ].pt );
-                  }
-
-/*
-                  cv::Mat H = cv::findHomography( obj, scene, CV_RANSAC );
-
-
-
-                  cv::Mat result;
-                  warpPerspective(first_img,result,H,cv::Size(first_img.cols+image.cols,first_img.rows));
-                  cv::Mat half(result,cv::Rect(0,0,image.cols,image.rows));
-                  image.copyTo(half);
-                  cv::imshow( "Result", result );
-
-                  cv::waitKey(10);
-
-                  //-- Get the corners from the image_1 ( the object to be "detected" )
-                  std::vector<cv::Point2f> obj_corners(4);
-                  obj_corners[0] = cvPoint(0,0); obj_corners[1] = cvPoint( first_img.cols, 0 );
-                  obj_corners[2] = cvPoint( first_img.cols, first_img.rows ); obj_corners[3] = cvPoint( 0, first_img.rows );
-                  std::vector<cv::Point2f> scene_corners(4);
-
-                  perspectiveTransform( obj_corners, scene_corners, H);
-
-                  //-- Draw lines between the corners (the mapped object in the scene - image_2 )
-                  line( img_matches, scene_corners[0] + cv::Point2f( first_img.cols, 0), scene_corners[1] + cv::Point2f( first_img.cols, 0), cv::Scalar(0, 255, 0), 4 );
-                  line( img_matches, scene_corners[1] + cv::Point2f( first_img.cols, 0), scene_corners[2] + cv::Point2f( first_img.cols, 0), cv::Scalar( 0, 255, 0), 4 );
-                  line( img_matches, scene_corners[2] + cv::Point2f( first_img.cols, 0), scene_corners[3] + cv::Point2f( first_img.cols, 0), cv::Scalar( 0, 255, 0), 4 );
-                  line( img_matches, scene_corners[3] + cv::Point2f( first_img.cols, 0), scene_corners[0] + cv::Point2f( first_img.cols, 0), cv::Scalar( 0, 255, 0), 4 );
-
-                  //-- Show detected matches
-                  imshow( "Good Matches & Object detection", img_matches );
-*/
-                  cv::waitKey(10);
-
-                float  mytemp, result;
-
-                  float angle = 640 /57;
-                  // lets try getting some angles
-
-                int f = 589;// claims 525
-
-
-                //for(int i  = 0; i < good_matches.size(); i++)
-                for(int i  = 0; i < 4; i++)
-                {
-                      mytemp = atan((scene[i].x-320)/f) * 180 / PI;
-                       result = (scene[i].x-320)/angle;
-                      /*if(floor(mytemp)==27)
-                      {
-                        std::cout << mytemp << "°\t";
-                      }
-                      if(ceil(mytemp)==-27)
-                      {
-                        std::cout << mytemp << "°\t";
-                      }
-                      */std::cout << mytemp << "° - " << result << "°\t\t" ;
-                  }std::cout << std::endl;
-
-
-            }
-            count++;
+            sphere.descriptors.push_back(descriptors);
+            sphere.keypoints.insert(sphere.keypoints.end(), keypoints.begin(), keypoints.end() );
         }
 
+        bool save(feature_struct &sphere)
+        {
+            std::cout << "Enter file name to save:\n";
+            std::string fileName;
+            std::cin >> fileName;
+
+            if(!fileName.empty())
+            {
+                if(fileName.substr(fileName.find_last_of(".") + 1) != "yml") {
+                    fileName.append(".yml");
+                }
+                cv::FileStorage fs(fileName, cv::FileStorage::WRITE);
+                cv::write(fs, "keypoints", sphere.keypoints);
+                cv::write(fs, "descriptors", sphere.descriptors);
+
+                fs.release();
+                return true;
+            }
+            return false;
+        }
+
+        bool match(feature_struct &a, feature_struct &b)
+        {
+            std::cout << a.descriptors.size() << "\t" << b.descriptors.size();
+            std::vector< cv::DMatch > matches;
+            matcher.match( a.descriptors, b.descriptors, matches );
+
+            double max_dist = 0; double min_dist = 100;
+
+            //-- Quick calculation of max and min distances between keypoints
+            for( int i = 0; i < a.descriptors.rows; i++ )
+            { double dist = matches[i].distance;
+              if( dist < min_dist ) min_dist = dist;
+              if( dist > max_dist ) max_dist = dist;
+            }
+
+            printf("-- Max dist : %f \n", max_dist );
+            printf("-- Min dist : %f \n", min_dist );
+
+            //-- Draw only "good" matches (i.e. whose distance is less than 3*min_dist )
+            std::vector< cv::DMatch > good_matches;
+
+            for( int i = 0; i < a.descriptors.rows; i++ )
+            { if( matches[i].distance < 3*min_dist )
+               { good_matches.push_back( matches[i]); }
+            }
+            std::cout << good_matches.size() << std::endl;
+            std::cout << "fin" << std::endl;
+        }
 
 protected:
-        ros::Subscriber sub;
-        ros::NodeHandle n;
-        cv::BRISK temp;
-
+        int f;
         cv::SurfFeatureDetector detector;
         cv::SurfDescriptorExtractor extractor;
         cv::FlannBasedMatcher matcher;
-
-        cv::Mat first_img, first_descriptors;
-        std::vector<cv::KeyPoint> first_keypoints;
-        bool initialising;
-        int count;
+        feature_struct feature_sphere;
+        feature_struct read_features;
+        float ptu_start_angle;
+        float ptu_angle;
 };
 
 int main(int argc, char **argv)
 {
-
     ros::init(argc, argv, "Surf");
     ros::NodeHandle n;
+    ptu_features camClass;
 
-    Kinect e(&n);
+    // read old location Data
+    if(argc > 1)
+        camClass.read(argv[1]);
+
+    message_filters::Subscriber<sensor_msgs::Image> image_sub(n, "/ptu_sweep/rgb/image_color", 1);
+    message_filters::Subscriber<sensor_msgs::JointState> ptu_sub(n, "/ptu/state", 1);
+    message_filters::Synchronizer<MySyncPolicy> sync(MySyncPolicy(10), image_sub, ptu_sub);
+
+    sync.registerCallback(boost::bind(&ptu_features::callback, &camClass, _1, _2));
+    std::cout << "Waiting for syncornized topics." << std::endl;
+
     ros::spin();
-
 }

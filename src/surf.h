@@ -21,7 +21,8 @@
 #include "opencv2/highgui/highgui.hpp"
 #include "opencv2/nonfree/features2d.hpp"
 
-struct surfStruct {
+struct surfStruct
+{
     std::vector<cv::KeyPoint> keypoints;
     cv::Mat     descriptors;
 };
