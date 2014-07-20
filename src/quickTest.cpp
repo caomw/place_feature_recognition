@@ -18,6 +18,8 @@
 #include <boost/foreach.hpp>
 #include "conversions.h"
 #include <fstream>
+#include <dirent.h>
+#include <algorithm>
 
 #define PI 3.14159265;
 typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::JointState> MySyncPolicy;
@@ -27,31 +29,63 @@ struct feature_struct {
     cv::Mat descriptors;
 };
 
+struct estimation
+{
+    std::string name;
+    int angle;
+    int matches;
+};
+
 class ptu_features
 {
     public:
         ptu_features()    // Constructor
         {
+            count = 0;
             detector.hessianThreshold = 400;
             ptu_start_angle = 1000; // init to number greater than 0-360
-            feature_sphere.descriptors = cv::Mat::zeros(0, 64, CV_32F);
-            f = 589;                // claims 525
+            //feature_sphere.descriptors = cv::Mat::zeros(0, 64, CV_32F);
+            f = 590;                // claims 525
+            pointer = 0;
         }
 
         void callback(const sensor_msgs::ImageConstPtr &img,  const sensor_msgs::JointStateConstPtr &ptu_state)
         {
-            std::cout << ".";
-            ptu_angle = ptu_state->position[0] * 60;                        // Joint state transformed into 360
+            count++;
 
-            if(ptu_start_angle == 1000)ptu_start_angle = ptu_angle;         // First run?
+            ptu_angle = ptu_state->position[0] * 60;            // Joint state transformed into 360
+
+            if(ptu_start_angle == 1000)                         // First run?
+            {
+                std::cout << "Here they come!" << std::endl;
+                ptu_start_angle = ptu_angle;
+            }
 
             extractFeatures(conversions(img), feature_sphere, ptu_angle);   // Extract
 
             if((ceil(ptu_angle / 10) * 10) == (ceil((ptu_start_angle*-1) / 10) * 10))   // completed
+            //if(count == 31)
             {
-                if(this->read_features.keypoints.size() > 1)
+                if(this->read_features.size() > 0)
                 {
-                    match(read_features, feature_sphere);
+                    for(int i = 0; i < whereAmI.size(); i ++)
+                    {
+                        this->pointer = i;
+                        match(read_features[i], feature_sphere);
+                    }
+
+                    int bestPos = 0;
+                    int bestMatch;
+
+                    for(int i = 0; i < whereAmI.size(); i ++)
+                    {
+                        if(bestPos < whereAmI[i].matches)
+                        {
+                            bestPos=whereAmI[i].matches;
+                            bestMatch = i;
+                        }
+                    }
+                    std::cout << "\nI believe I am at " << whereAmI[bestMatch].name << " and " <<whereAmI[bestMatch].angle << " off angle!"<< std::endl;
                 }
                 else
                 {
@@ -61,33 +95,50 @@ class ptu_features
             }
         }
 
-        void read(std::string fn)
+        void read(std::string fn, bool firstLoop)
         {
-            if(fn.substr(fn.find_last_of(".") + 1) != "yml")
-            {
-                ROS_ERROR("Unable to convert none .yml file");
-                return;
-            }
-            char realFile[200];
-            strcpy(realFile, fn.c_str());
-            std::ifstream my_file(realFile);
-            if (!my_file) {
-                ROS_ERROR("Cannot Locate %s", realFile);
-                return;
+            bool isDir = false;
+            DIR *dir;
+            struct dirent *ent;
+            char name[200];
+            if ((dir = opendir (fn.c_str())) != NULL && !firstLoop) {
+                while ((ent = readdir(dir)) != NULL )
+                {
+                    sprintf(name,"%s/%s", fn.c_str(), ent->d_name);
+                    read(name, true);// << "\n";
+                }
             }
             else
             {
-                cv::FileStorage fs2(fn, cv::FileStorage::READ);
+                if(fn.substr(fn.find_last_of(".") + 1) != "yml")
+                {
+                    return;
+                }
+                char realFile[200];
+                strcpy(realFile, fn.c_str());
+                std::ifstream my_file(realFile);
+                if (my_file)    // is it a real file
+                {
+                    feature_struct temp;
+                    cv::FileStorage fs2(fn, cv::FileStorage::READ);
 
-                fs2["descriptors"] >> this->read_features.descriptors;
+                    fs2["descriptors"] >> temp.descriptors; //this->read_features[0].descriptors;
 
-                cv::FileNode  kptFileNode1 = fs2["keypoints"];
-                cv::read( kptFileNode1, this->read_features.keypoints );
+                    cv::FileNode  kptFileNode1 = fs2["keypoints"];
+                    cv::read( kptFileNode1, temp.keypoints);// this->read_features[0].keypoints );
 
-                fs2.release();
+                    fs2.release();
 
-                std::cout << "Successfully Loaded " << this->read_features.keypoints.size() << " keypoints from "
-                          << fn << std::endl;
+                    this->read_features.push_back(temp);
+
+                    estimation guessTemp;
+                    guessTemp.angle = 0;
+                    guessTemp.matches =0;
+                    guessTemp.name = fn;
+                    whereAmI.push_back(guessTemp);
+                    std::cout << "Successfully Loaded " << this->read_features[this->read_features.size()-1].keypoints.size() << " keypoints from "
+                              << fn << std::endl;
+                }
             }
         }
 
@@ -95,6 +146,7 @@ private:
 
         void extractFeatures(cv::Mat image, feature_struct &sphere, float angle)
         {
+            //std::cout << "sphere type: " << sphere.descriptors.type() << ".\t";
             cv::Mat descriptors;
             std::vector<cv::KeyPoint> keypoints;
 
@@ -102,10 +154,13 @@ private:
             detector.detect(image, keypoints);
             extractor.compute(image, keypoints, descriptors);
 
+            cv::KeyPoint temp;
             for(int i = 0; i < keypoints.size(); i++)
             {
-                keypoints[i].angle  = atan((keypoints[i].pt.x-320)/f) * 180 / PI;
-                keypoints[i].angle += angle;
+                temp = keypoints[i];
+                keypoints[i].pt.x  = atan((temp.pt.x-320)/f) * 180 / PI;
+                //keypoints[i].pt.y  = atan((temp.pt.y-240)/f) * 180 / PI;
+                keypoints[i].pt.x += angle; // Add PTU angle
             }
 
             sphere.descriptors.push_back(descriptors);
@@ -135,53 +190,72 @@ private:
 
         bool match(feature_struct &a, feature_struct &b)
         {
-            std::cout << a.descriptors.size() << "\t" << b.descriptors.size();
-            std::vector< cv::DMatch > matches;
-            matcher.match( a.descriptors, b.descriptors, matches );
-
-            double max_dist = 0; double min_dist = 100;
-
-            //-- Quick calculation of max and min distances between keypoints
-            for( int i = 0; i < a.descriptors.rows; i++ )
-            { double dist = matches[i].distance;
-              if( dist < min_dist ) min_dist = dist;
-              if( dist > max_dist ) max_dist = dist;
+            int hist[360];
+            for(int i = 0; i < 360; i++)
+            {
+                hist[i] = 0;
             }
+            std::vector<std::vector <cv::DMatch> > matches;
+            cv::BFMatcher matcher;
+            matcher.knnMatch( a.descriptors, b.descriptors, matches, 2);
 
-            printf("-- Max dist : %f \n", max_dist );
-            printf("-- Min dist : %f \n", min_dist );
+            int NumMatches = 0;
+            for (int i = 0; i < matches.size(); ++i)
+            {
+                const float ratio = 0.08; // As in Lowe's paper;
+                if(matches[i][0].distance < ratio)
+                {
+                    int difAng = ceil(a.keypoints[i].pt.x - b.keypoints[matches[i][0].trainIdx].pt.x);
+                    if(difAng < 0)
+                        difAng = 360 + difAng;
+                    if(std::max(a.keypoints[i].pt.y, b.keypoints[matches[i][0].trainIdx].pt.y)
+                            - std::max(a.keypoints[i].pt.y, b.keypoints[matches[i][0].trainIdx].pt.y) < 5)
+                    {
+                        NumMatches++;
+                        hist[difAng]++;
+                    }
 
-            //-- Draw only "good" matches (i.e. whose distance is less than 3*min_dist )
-            std::vector< cv::DMatch > good_matches;
-
-            for( int i = 0; i < a.descriptors.rows; i++ )
-            { if( matches[i].distance < 3*min_dist )
-               { good_matches.push_back( matches[i]); }
+                }
             }
-            std::cout << good_matches.size() << std::endl;
-            std::cout << "fin" << std::endl;
+            int bestPointer = 0;
+            int angle = 0;
+            for(int i = 0; i < 360; i++)
+            {
+                if(bestPointer < hist[i])
+                {
+                    bestPointer=hist[i];
+                    angle = i;
+                }
+            }
+            std::cout << "Estimation: " << angle << " degrees, (" << NumMatches << ") Matches" << std::endl;
+            whereAmI[this->pointer].angle = angle;
+            whereAmI[this->pointer].matches = NumMatches;
         }
 
 protected:
-        int f;
+        int count;
+        int pointer;
+        float f;
         cv::SurfFeatureDetector detector;
         cv::SurfDescriptorExtractor extractor;
         cv::FlannBasedMatcher matcher;
         feature_struct feature_sphere;
-        feature_struct read_features;
+        std::vector<feature_struct> read_features;
         float ptu_start_angle;
         float ptu_angle;
+        std::vector<estimation> whereAmI;
 };
 
 int main(int argc, char **argv)
 {
     ros::init(argc, argv, "Surf");
+
     ros::NodeHandle n;
     ptu_features camClass;
 
     // read old location Data
     if(argc > 1)
-        camClass.read(argv[1]);
+        camClass.read(argv[1], false);
 
     message_filters::Subscriber<sensor_msgs::Image> image_sub(n, "/ptu_sweep/rgb/image_color", 1);
     message_filters::Subscriber<sensor_msgs::JointState> ptu_sub(n, "/ptu/state", 1);
