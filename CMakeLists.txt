@@ -4,7 +4,9 @@ project(place_feature_recognition)
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
-find_package(OpenCV)
+
+
+find_package(OpenCV 2.4.9 REQUIRED)
 find_package(PCL REQUIRED)
 find_package(catkin REQUIRED COMPONENTS
   actionlib_msgs
@@ -33,12 +35,13 @@ pkg_check_modules(GSL REQUIRED gsl)
 include_directories(${GSL_INCLUDE_DIRS})
 link_directories(${GSL_LIBRARY_DIRS})
 
-
 include_directories(${OpenCV_INCLUDE_DIRS})
 include_directories(${PCL_INCLUDE_DIRS})
 link_directories(${PCL_LIBRARY_DIRS})
 add_definitions(${PCL_DEFINITIONS})
 
+
+find_package(OpenCV 2.4.9)
 ## System dependencies are found with CMake's conventions
 find_package(Boost REQUIRED COMPONENTS system)
 
@@ -163,6 +166,10 @@ add_executable(quickTest
     src/conversions.cpp
 )
 
+add_executable(gpuTest 
+    src/gpuTest.cpp
+    src/conversions.cpp
+)
 
 ## Add cmake target dependencies of the executable/library
 ## as an example, message headers may need to be generated before nodes
@@ -186,6 +193,13 @@ target_link_libraries(quickTest
    ${catkin_LIBRARIES}
    ${PCL_LIBRARIES}
    ${OpenCV_LIBRARIES}
+)
+
+target_link_libraries(gpuTest
+   ${catkin_LIBRARIES}
+   ${PCL_LIBRARIES}
+   ${OpenCV_LIBRARIES}
+#   ${OpenCV_LIBRARIES}
 )
 
 #############

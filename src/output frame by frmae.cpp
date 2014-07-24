@@ -39,9 +39,8 @@ struct estimation
 class ptu_features
 {
     public:
-        ptu_features(ros::NodeHandle* _n)    // Constructor
+        ptu_features()    // Constructor
         {
-            this->n = *_n;
             count = 0;
             detector.hessianThreshold = 400;
             ptu_start_angle = 1000; // init to number greater than 0-360
@@ -52,6 +51,8 @@ class ptu_features
 
         void callback(const sensor_msgs::ImageConstPtr &img,  const sensor_msgs::JointStateConstPtr &ptu_state)
         {
+            count++;
+
             ptu_angle = ptu_state->position[0] * 60;            // Joint state transformed into 360
 
             if(ptu_start_angle == 1000)                         // First run?
@@ -61,13 +62,10 @@ class ptu_features
             }
 
             extractFeatures(conversions(img), feature_sphere, ptu_angle);   // Extract
-            std::cout << count << std::endl;
 
-            //if((ceil(ptu_angle / 10) * 10) == (ceil((ptu_start_angle*-1) / 10) * 10))   // completed
-            if(count == 31)
+            if((ceil(ptu_angle / 10) * 10) == (ceil((ptu_start_angle*-1) / 10) * 10))   // completed
+            //if(count == 31)
             {
-
-
                 if(this->read_features.size() > 0)
                 {
                     for(int i = 0; i < whereAmI.size(); i ++)
@@ -93,10 +91,8 @@ class ptu_features
                 {
                     while(!save(feature_sphere));
                     std::cout << "File Saved!" << std::endl;
-                    std::exit(1);
                 }
             }
-            count++;
         }
 
         void read(std::string fn, bool firstLoop)
@@ -150,6 +146,7 @@ private:
 
         void extractFeatures(cv::Mat image, feature_struct &sphere, float angle)
         {
+
             //std::cout << "sphere type: " << sphere.descriptors.type() << ".\t";
             cv::Mat descriptors;
             std::vector<cv::KeyPoint> keypoints;
@@ -162,8 +159,8 @@ private:
             for(int i = 0; i < keypoints.size(); i++)
             {
                 temp = keypoints[i];
-                keypoints[i].pt.x  = -atan((temp.pt.x-320)/f) * 180 / PI;
-                keypoints[i].pt.y  = -atan((temp.pt.y-240)/f) * 180 / PI;
+                keypoints[i].pt.x  = -(atan((temp.pt.x-320)/f) * 180 / PI);
+                keypoints[i].pt.y  = -(atan((temp.pt.y-240)/f) * 180 / PI);
                 keypoints[i].pt.x += angle; // Add PTU angle
             }
 
@@ -171,27 +168,43 @@ private:
             sphere.keypoints.insert(sphere.keypoints.end(), keypoints.begin(), keypoints.end() );
 /*
             std::ofstream myfile;
-            myfile.open (fileName.c_str());
 
-            for(int i = 0 ; i < 100; i++)
+            std::ostringstream ss;
+            ss << "Aisle2_90|" << angle;
+            std::string s(ss.str());
+
+            myfile.open (s.c_str());
+
+            //std::cout << "sphere type: " << sphere.descriptors.type() << ".\t";
+            cv::Mat descriptors;
+            std::vector<cv::KeyPoint> keypoints;
+
+            // detector && Extract surf
+            detector.detect(image, keypoints);
+            extractor.compute(image, keypoints, descriptors);
+
+            sphere.descriptors.push_back(descriptors);
+            sphere.keypoints.insert(sphere.keypoints.end(), keypoints.begin(), keypoints.end() );
+            for(int i = 0 ; i < keypoints.size; i++)
             {
-                myfile << sphere.keypoints[i].angle << ", "
-                          << sphere.keypoints[i].pt.x << ", "
-                             << sphere.keypoints[i].pt.y << ", "
-                                << sphere.keypoints[i].response << ", "
-                                   << sphere.keypoints[i].size << ", "
-                                      << sphere.keypoints[i].octave << ", ";
+                myfile << keypoints[i].angle << ", "
+                          << keypoints[i].pt.x << ", "
+                             << keypoints[i].pt.y << ", "
+                                << keypoints[i].response << ", "
+                                   << keypoints[i].size << ", "
+                                      << keypoints[i].octave << ", ";
 
                 for(int j = 0; j < 64; j++)
                 {
-                    myfile<<sphere.descriptors.at<float>(i,j);
+                    myfile << descriptors.at<float>(i,j);
                     if(j!= 63)
                          myfile << ", ";
                 }
                 myfile<<std::endl;
             }
 
-            myfile.close();*/
+            myfile.close();
+            */
         }
 
         bool save(feature_struct &sphere)
@@ -202,11 +215,12 @@ private:
 
 
             if(!fileName.empty())
-            {/*
+            {
+                /*
                 std::ofstream myfile;
                 myfile.open (fileName.c_str());
 
-                for(int i = 0 ; i < 100; i++)
+                for(int i = 0 ; i < sphere.keypoints.size(); i++)
                 {
                     myfile << sphere.keypoints[i].angle << ", "
                               << sphere.keypoints[i].pt.x << ", "
@@ -273,29 +287,21 @@ private:
             }
             int bestPointer = 0;
             int angle = 0;
-            std::cout << std::endl;
             for(int i = 0; i < 360; i++)
             {
-                for(int j = 0; j < 5; j++)
-                {
-                    roundHist[i] += hist[(i-2+j)%360];
-                }
-                roundHist[i] /= 5;
                 if(bestPointer < hist[i])
                 {
                     bestPointer=hist[i];
                     angle = i;
                 }
-                std::cout << hist[i] << "\t" << roundHist[i] << std::endl;
             }
-            std::cout << std::endl;
+
             std::cout << "Estimation: " << angle << " degrees, (" << NumMatches << ") Matches" << std::endl;
             whereAmI[this->pointer].angle = angle;
             whereAmI[this->pointer].matches = NumMatches;
         }
 
 protected:
-        ros::NodeHandle n;
         int count;
         int pointer;
         float f;
@@ -314,7 +320,7 @@ int main(int argc, char **argv)
     ros::init(argc, argv, "Surf");
 
     ros::NodeHandle n;
-    ptu_features camClass(&n);
+    ptu_features camClass;
 
     // read old location Data
     if(argc > 1)
@@ -322,7 +328,7 @@ int main(int argc, char **argv)
 
     message_filters::Subscriber<sensor_msgs::Image> image_sub(n, "/ptu_sweep/rgb/image_color", 1);
     message_filters::Subscriber<sensor_msgs::JointState> ptu_sub(n, "/ptu/state", 1);
-    message_filters::Synchronizer<MySyncPolicy> sync(MySyncPolicy(10), image_sub, ptu_sub);
+    message_filters::Synchronizer<MySyncPolicy> sync(MySyncPolicy(1), image_sub, ptu_sub);
 
     sync.registerCallback(boost::bind(&ptu_features::callback, &camClass, _1, _2));
     std::cout << "Waiting for syncornized topics." << std::endl;

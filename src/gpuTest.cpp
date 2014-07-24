@@ -21,12 +21,32 @@
 #include <dirent.h>
 #include <algorithm>
 
+#include "opencv2/gpu/gpu.hpp"
+#include <opencv2/nonfree/gpu.hpp>
+
+#ifdef _DEBUG
+#pragma comment(lib, "opencv_core231d.lib")
+#pragma comment(lib, "opencv_imgproc231d.lib")
+#pragma comment(lib, "opencv_objdetect231d.lib")
+#pragma comment(lib, "opencv_gpu231d.lib")
+#pragma comment(lib, "opencv_features2d231d.lib")
+#pragma comment(lib, "opencv_highgui231d.lib")
+#else
+#pragma comment(lib, "opencv_core231.lib")
+#pragma comment(lib, "opencv_imgproc231.lib")
+#pragma comment(lib, "opencv_objdetect231.lib")
+#pragma comment(lib, "opencv_objdetect231d.lib")
+#pragma comment(lib, "opencv_gpu231.lib")
+#pragma comment(lib, "opencv_features2d231.lib")
+#pragma comment(lib, "opencv_highgui231.lib")
+#endif
+
 #define PI 3.14159265;
 typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::JointState> MySyncPolicy;
 
 struct feature_struct {
     std::vector<cv::KeyPoint> keypoints;
-    cv::Mat descriptors;
+    cv::gpu::GpuMat descriptors;
 };
 
 struct estimation
@@ -39,9 +59,8 @@ struct estimation
 class ptu_features
 {
     public:
-        ptu_features(ros::NodeHandle* _n)    // Constructor
+        ptu_features()    // Constructor
         {
-            this->n = *_n;
             count = 0;
             detector.hessianThreshold = 400;
             ptu_start_angle = 1000; // init to number greater than 0-360
@@ -52,6 +71,8 @@ class ptu_features
 
         void callback(const sensor_msgs::ImageConstPtr &img,  const sensor_msgs::JointStateConstPtr &ptu_state)
         {
+            count++;
+
             ptu_angle = ptu_state->position[0] * 60;            // Joint state transformed into 360
 
             if(ptu_start_angle == 1000)                         // First run?
@@ -61,13 +82,10 @@ class ptu_features
             }
 
             extractFeatures(conversions(img), feature_sphere, ptu_angle);   // Extract
-            std::cout << count << std::endl;
 
-            //if((ceil(ptu_angle / 10) * 10) == (ceil((ptu_start_angle*-1) / 10) * 10))   // completed
-            if(count == 31)
+            if((ceil(ptu_angle / 10) * 10) == (ceil((ptu_start_angle*-1) / 10) * 10))   // completed
+            //if(count == 31)
             {
-
-
                 if(this->read_features.size() > 0)
                 {
                     for(int i = 0; i < whereAmI.size(); i ++)
@@ -93,10 +111,8 @@ class ptu_features
                 {
                     while(!save(feature_sphere));
                     std::cout << "File Saved!" << std::endl;
-                    std::exit(1);
                 }
             }
-            count++;
         }
 
         void read(std::string fn, bool firstLoop)
@@ -124,10 +140,11 @@ class ptu_features
                 if (my_file)    // is it a real file
                 {
                     feature_struct temp;
+                    cv::Mat temp_image_holder;
                     cv::FileStorage fs2(fn, cv::FileStorage::READ);
 
-                    fs2["descriptors"] >> temp.descriptors; //this->read_features[0].descriptors;
-
+                    fs2["descriptors"] >> temp_image_holder; //this->read_features[0].descriptors;
+                    temp.descriptors.upload(temp_image_holder);
                     cv::FileNode  kptFileNode1 = fs2["keypoints"];
                     cv::read( kptFileNode1, temp.keypoints);// this->read_features[0].keypoints );
 
@@ -150,6 +167,7 @@ private:
 
         void extractFeatures(cv::Mat image, feature_struct &sphere, float angle)
         {
+            gpu_image.upload(image);
             //std::cout << "sphere type: " << sphere.descriptors.type() << ".\t";
             cv::Mat descriptors;
             std::vector<cv::KeyPoint> keypoints;
@@ -162,70 +180,23 @@ private:
             for(int i = 0; i < keypoints.size(); i++)
             {
                 temp = keypoints[i];
-                keypoints[i].pt.x  = -atan((temp.pt.x-320)/f) * 180 / PI;
-                keypoints[i].pt.y  = -atan((temp.pt.y-240)/f) * 180 / PI;
+                keypoints[i].pt.x  = atan((temp.pt.x-320)/f) * 180 / PI;
+                //keypoints[i].pt.y  = atan((temp.pt.y-240)/f) * 180 / PI;
                 keypoints[i].pt.x += angle; // Add PTU angle
             }
 
-            sphere.descriptors.push_back(descriptors);
-            sphere.keypoints.insert(sphere.keypoints.end(), keypoints.begin(), keypoints.end() );
-/*
-            std::ofstream myfile;
-            myfile.open (fileName.c_str());
-
-            for(int i = 0 ; i < 100; i++)
-            {
-                myfile << sphere.keypoints[i].angle << ", "
-                          << sphere.keypoints[i].pt.x << ", "
-                             << sphere.keypoints[i].pt.y << ", "
-                                << sphere.keypoints[i].response << ", "
-                                   << sphere.keypoints[i].size << ", "
-                                      << sphere.keypoints[i].octave << ", ";
-
-                for(int j = 0; j < 64; j++)
-                {
-                    myfile<<sphere.descriptors.at<float>(i,j);
-                    if(j!= 63)
-                         myfile << ", ";
-                }
-                myfile<<std::endl;
-            }
-
-            myfile.close();*/
+           // sphere.descriptors.push_back(descriptors);
+           // sphere.keypoints.insert(sphere.keypoints.end(), keypoints.begin(), keypoints.end() );
         }
 
         bool save(feature_struct &sphere)
-        {
+        {/*
             std::cout << "Enter file name to save:\n";
             std::string fileName;
             std::cin >> fileName;
 
-
             if(!fileName.empty())
-            {/*
-                std::ofstream myfile;
-                myfile.open (fileName.c_str());
-
-                for(int i = 0 ; i < 100; i++)
-                {
-                    myfile << sphere.keypoints[i].angle << ", "
-                              << sphere.keypoints[i].pt.x << ", "
-                                 << sphere.keypoints[i].pt.y << ", "
-                                    << sphere.keypoints[i].response << ", "
-                                       << sphere.keypoints[i].size << ", "
-                                          << sphere.keypoints[i].octave << ", ";
-
-                    for(int j = 0; j < 64; j++)
-                    {
-                        myfile<<sphere.descriptors.at<float>(i,j);
-                        if(j!= 63)
-                             myfile << ", ";
-                    }
-                    myfile<<std::endl;
-                }
-
-                myfile.close();
-                */
+            {
                 if(fileName.substr(fileName.find_last_of(".") + 1) != "yml") {
                     fileName.append(".yml");
                 }
@@ -234,20 +205,18 @@ private:
                 cv::write(fs, "descriptors", sphere.descriptors);
 
                 fs.release();
-
                 return true;
             }
             return false;
+            */
         }
 
         bool match(feature_struct &a, feature_struct &b)
-        {
+        {/*
             int hist[360];
-            int roundHist[360];
             for(int i = 0; i < 360; i++)
             {
                 hist[i] = 0;
-                roundHist[i] = 0;
             }
             std::vector<std::vector <cv::DMatch> > matches;
             cv::BFMatcher matcher;
@@ -273,29 +242,26 @@ private:
             }
             int bestPointer = 0;
             int angle = 0;
-            std::cout << std::endl;
             for(int i = 0; i < 360; i++)
             {
-                for(int j = 0; j < 5; j++)
-                {
-                    roundHist[i] += hist[(i-2+j)%360];
-                }
-                roundHist[i] /= 5;
                 if(bestPointer < hist[i])
                 {
                     bestPointer=hist[i];
                     angle = i;
                 }
-                std::cout << hist[i] << "\t" << roundHist[i] << std::endl;
             }
-            std::cout << std::endl;
             std::cout << "Estimation: " << angle << " degrees, (" << NumMatches << ") Matches" << std::endl;
             whereAmI[this->pointer].angle = angle;
             whereAmI[this->pointer].matches = NumMatches;
+            */
         }
 
 protected:
-        ros::NodeHandle n;
+        // GPU specific
+        cv::gpu::GpuMat gpu_image;
+        cv::gpu::GpuMat gpu_descriptors;
+        cv::gpu::SURF_GPU surf;
+
         int count;
         int pointer;
         float f;
@@ -314,7 +280,7 @@ int main(int argc, char **argv)
     ros::init(argc, argv, "Surf");
 
     ros::NodeHandle n;
-    ptu_features camClass(&n);
+    ptu_features camClass;
 
     // read old location Data
     if(argc > 1)
