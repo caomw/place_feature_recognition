@@ -164,13 +164,19 @@ add_executable(comparison
 add_executable(quickTest 
     src/quickTest.cpp
     src/conversions.cpp
-    src/graphs/cvplot.h
 )
 
 add_executable(gpuTest 
     src/gpuTest.cpp
     src/conversions.cpp
 )
+
+
+## delete	
+add_executable(gaffy 
+    gaffy.cpp
+)
+
 
 ## Add cmake target dependencies of the executable/library
 ## as an example, message headers may need to be generated before nodes
@@ -200,7 +206,9 @@ target_link_libraries(gpuTest
    ${catkin_LIBRARIES}
    ${PCL_LIBRARIES}
    ${OpenCV_LIBRARIES}
-#   ${OpenCV_LIBRARIES}
+)
+
+target_link_libraries(gaffy
 )
 
 #############

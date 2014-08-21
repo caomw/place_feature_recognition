@@ -154,11 +154,10 @@ add_executable(comparison
     src/comparison.cpp
     src/conversions.cpp
     src/visualise.cpp
-    src/features.cpp
         src/3Dsurf.cpp	
-	src/3Dbrief.cpp	
-	src/3Dsift.cpp	
-	src/3Dbrisk.cpp	
+	      src/3Dbrief.cpp	
+	      src/3Dsift.cpp	
+	      src/3Dbrisk.cpp	
 )
 
 add_executable(quickTest 
@@ -170,6 +169,13 @@ add_executable(gpuTest
     src/gpuTest.cpp
     src/conversions.cpp
 )
+
+
+## delete	
+add_executable(emoji 
+    emoji.cpp
+)
+
 
 ## Add cmake target dependencies of the executable/library
 ## as an example, message headers may need to be generated before nodes
@@ -199,7 +205,10 @@ target_link_libraries(gpuTest
    ${catkin_LIBRARIES}
    ${PCL_LIBRARIES}
    ${OpenCV_LIBRARIES}
-#   ${OpenCV_LIBRARIES}
+)
+
+target_link_libraries(emoji
+  ${OpenCV_LIBRARIES}
 )
 
 #############

@@ -18,7 +18,7 @@ public:
 
     virtual void comparason()
     {
-      std::cout << "I should be derived base class.";
+
     }
 
 	cv::Mat data;

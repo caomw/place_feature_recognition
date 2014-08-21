@@ -21,6 +21,7 @@
 #include <dirent.h>
 #include <algorithm>
 
+
 #define PI 3.14159265;
 typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::JointState> MySyncPolicy;
 
@@ -39,13 +40,15 @@ struct estimation
 class ptu_features
 {
     public:
+        std::string outputFileName;
+
         ptu_features(ros::NodeHandle* _n)    // Constructor
         {
+            myfile.open("tempGraphical.txt");
             this->n = *_n;
             count = 0;
-            detector.hessianThreshold = 400;
+            detector.hessianThreshold = 2000;
             ptu_start_angle = 1000; // init to number greater than 0-360
-            //feature_sphere.descriptors = cv::Mat::zeros(0, 64, CV_32F);
             f = 590;                // claims 525
             pointer = 0;
         }
@@ -60,20 +63,33 @@ class ptu_features
                 ptu_start_angle = ptu_angle;
             }
 
+            /*
+
+                    // SAVE IMAGES FOR PANARAMAS
+
+            std::stringstream file;
+            if(count < 10){
+                file << "image_0" << count << ".jpg";
+            }else{
+                file << "image_" << count << ".jpg";
+            }
+            cv::imwrite(file.str(), conversions(img));
+            */
+
             extractFeatures(conversions(img), feature_sphere, ptu_angle);   // Extract
             std::cout << count << std::endl;
 
             //if((ceil(ptu_angle / 10) * 10) == (ceil((ptu_start_angle*-1) / 10) * 10))   // completed
             if(count == 31)
             {
-
-
                 if(this->read_features.size() > 0)
                 {
                     for(int i = 0; i < whereAmI.size(); i ++)
                     {
                         this->pointer = i;
+                        myfile << whereAmI[i].name << "\t";
                         match(read_features[i], feature_sphere);
+                        myfile << "\n";
                     }
 
                     int bestPos = 0;
@@ -88,6 +104,8 @@ class ptu_features
                         }
                     }
                     std::cout << "\nI believe I am at " << whereAmI[bestMatch].name << " and " <<whereAmI[bestMatch].angle << " off angle!"<< std::endl;
+                    myfile.close();
+                    std::exit(1);
                 }
                 else
                 {
@@ -140,8 +158,7 @@ class ptu_features
                     guessTemp.matches =0;
                     guessTemp.name = fn;
                     whereAmI.push_back(guessTemp);
-                    std::cout << "Successfully Loaded " << this->read_features[this->read_features.size()-1].keypoints.size() << " keypoints from "
-                              << fn << std::endl;
+                    std::cout << "Successfully Loaded " << this->read_features[this->read_features.size()-1].keypoints.size() << " keypoints from " << fn << std::endl;
                 }
             }
         }
@@ -150,6 +167,9 @@ private:
 
         void extractFeatures(cv::Mat image, feature_struct &sphere, float angle)
         {
+            //cv::Rect myROI(264, 0, 112, 480); // Crop image for
+            //image = image(myROI);
+
             //std::cout << "sphere type: " << sphere.descriptors.type() << ".\t";
             cv::Mat descriptors;
             std::vector<cv::KeyPoint> keypoints;
@@ -164,72 +184,28 @@ private:
                 temp = keypoints[i];
                 keypoints[i].pt.x  = -atan((temp.pt.x-320)/f) * 180 / PI;
                 keypoints[i].pt.y  = -atan((temp.pt.y-240)/f) * 180 / PI;
+
                 keypoints[i].pt.x += angle; // Add PTU angle
             }
 
             sphere.descriptors.push_back(descriptors);
             sphere.keypoints.insert(sphere.keypoints.end(), keypoints.begin(), keypoints.end() );
-/*
-            std::ofstream myfile;
-            myfile.open (fileName.c_str());
-
-            for(int i = 0 ; i < 100; i++)
-            {
-                myfile << sphere.keypoints[i].angle << ", "
-                          << sphere.keypoints[i].pt.x << ", "
-                             << sphere.keypoints[i].pt.y << ", "
-                                << sphere.keypoints[i].response << ", "
-                                   << sphere.keypoints[i].size << ", "
-                                      << sphere.keypoints[i].octave << ", ";
-
-                for(int j = 0; j < 64; j++)
-                {
-                    myfile<<sphere.descriptors.at<float>(i,j);
-                    if(j!= 63)
-                         myfile << ", ";
-                }
-                myfile<<std::endl;
-            }
-
-            myfile.close();*/
         }
 
         bool save(feature_struct &sphere)
         {
-            std::cout << "Enter file name to save:\n";
-            std::string fileName;
-            std::cin >> fileName;
+            if(outputFileName.empty())
+            {
+                std::cout << "Enter file name to save:\n";
+                std::cin >> outputFileName;
+            }
 
-
-            if(!fileName.empty())
-            {/*
-                std::ofstream myfile;
-                myfile.open (fileName.c_str());
-
-                for(int i = 0 ; i < 100; i++)
-                {
-                    myfile << sphere.keypoints[i].angle << ", "
-                              << sphere.keypoints[i].pt.x << ", "
-                                 << sphere.keypoints[i].pt.y << ", "
-                                    << sphere.keypoints[i].response << ", "
-                                       << sphere.keypoints[i].size << ", "
-                                          << sphere.keypoints[i].octave << ", ";
-
-                    for(int j = 0; j < 64; j++)
-                    {
-                        myfile<<sphere.descriptors.at<float>(i,j);
-                        if(j!= 63)
-                             myfile << ", ";
-                    }
-                    myfile<<std::endl;
+            if(!outputFileName.empty())
+            {
+                if(outputFileName.substr(outputFileName.find_last_of(".") + 1) != "yml") {
+                    outputFileName.append(".yml");
                 }
-
-                myfile.close();
-                */
-                if(fileName.substr(fileName.find_last_of(".") + 1) != "yml") {
-                    fileName.append(".yml");
-                }
-                cv::FileStorage fs(fileName, cv::FileStorage::WRITE);
+                cv::FileStorage fs(outputFileName, cv::FileStorage::WRITE);
                 cv::write(fs, "keypoints", sphere.keypoints);
                 cv::write(fs, "descriptors", sphere.descriptors);
 
@@ -242,8 +218,8 @@ private:
 
         bool match(feature_struct &a, feature_struct &b)
         {
-            int hist[360];
-            int roundHist[360];
+            float hist[360];
+            float roundHist[360];
             for(int i = 0; i < 360; i++)
             {
                 hist[i] = 0;
@@ -256,19 +232,20 @@ private:
             int NumMatches = 0;
             for (int i = 0; i < matches.size(); ++i)
             {
-                const float ratio = 0.08; // As in Lowe's paper;
+                const float ratio = 0.15; // As in Lowe's paper;
                 if(matches[i][0].distance < ratio)
                 {
                     int difAng = ceil(a.keypoints[i].pt.x - b.keypoints[matches[i][0].trainIdx].pt.x);
                     if(difAng < 0)
                         difAng = 360 + difAng;
+                    NumMatches++;
+                    //hist[difAng]++;
+                    hist[difAng] += 1- matches[i][0].distance;
                     if(std::max(a.keypoints[i].pt.y, b.keypoints[matches[i][0].trainIdx].pt.y)
                             - std::max(a.keypoints[i].pt.y, b.keypoints[matches[i][0].trainIdx].pt.y) < 5)
                     {
-                        NumMatches++;
-                        hist[difAng]++;
-                    }
 
+                    }
                 }
             }
             int bestPointer = 0;
@@ -276,20 +253,24 @@ private:
             std::cout << std::endl;
             for(int i = 0; i < 360; i++)
             {
+                myfile << hist[i] << "\t";
                 for(int j = 0; j < 5; j++)
                 {
+
                     roundHist[i] += hist[(i-2+j)%360];
                 }
-                roundHist[i] /= 5;
+                //roundHist[i] /= 5;
                 if(bestPointer < hist[i])
                 {
                     bestPointer=hist[i];
                     angle = i;
                 }
-                std::cout << hist[i] << "\t" << roundHist[i] << std::endl;
+                // output each degree
+               // std::cout << hist[i] << "\t" << roundHist[i] << std::endl;
             }
-            std::cout << std::endl;
-            std::cout << "Estimation: " << angle << " degrees, (" << NumMatches << ") Matches" << std::endl;
+            //std::cout << std::endl;
+            //std::cout << "Estimation: " << angle << " degrees, (" << NumMatches << ") Matches" << std::endl;
+
             whereAmI[this->pointer].angle = angle;
             whereAmI[this->pointer].matches = NumMatches;
         }
@@ -307,6 +288,8 @@ protected:
         float ptu_start_angle;
         float ptu_angle;
         std::vector<estimation> whereAmI;
+
+        std::ofstream myfile;
 };
 
 int main(int argc, char **argv)
@@ -318,13 +301,19 @@ int main(int argc, char **argv)
 
     // read old location Data
     if(argc > 1)
-        camClass.read(argv[1], false);
+       camClass.read(argv[1], false);
+        //camClass.outputFileName = argv[1];
+
+
 
     message_filters::Subscriber<sensor_msgs::Image> image_sub(n, "/ptu_sweep/rgb/image_color", 1);
+    //message_filters::Subscriber<sensor_msgs::Image> image_sub(n, "/head_xtion/rgb/image_color", 1);
     message_filters::Subscriber<sensor_msgs::JointState> ptu_sub(n, "/ptu/state", 1);
     message_filters::Synchronizer<MySyncPolicy> sync(MySyncPolicy(10), image_sub, ptu_sub);
 
+
     sync.registerCallback(boost::bind(&ptu_features::callback, &camClass, _1, _2));
+
     std::cout << "Waiting for syncornized topics." << std::endl;
 
     ros::spin();
