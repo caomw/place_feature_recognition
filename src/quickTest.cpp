@@ -1,4 +1,5 @@
 #include <ros/ros.h>
+#include <ros/time.h>
 #include <sensor_msgs/Image.h>
 #include <iostream>
 #include <opencv2/core/core.hpp>
@@ -21,8 +22,14 @@
 #include <dirent.h>
 #include <algorithm>
 
+bool catch_ptu = true;
 
-#define PI 3.14159265;
+#define PI 3.14159265
+#define DISTANCE_FACTOR 0.7
+
+#define PTU_UPPERLIMIT  3;
+#define PTU_LOWERLIMIT -3;
+
 typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::JointState> MySyncPolicy;
 
 struct feature_struct {
@@ -44,13 +51,62 @@ class ptu_features
 
         ptu_features(ros::NodeHandle* _n)    // Constructor
         {
+            n = *_n;
+            ptu.name.resize(2);
+            ptu.position.resize(2);
+            ptu.velocity.resize(2);
+
+            ptu_pub = this->n.advertise<sensor_msgs::JointState>("/ptu/cmd", 1);
+            ptu_sub = this->n.subscribe("/ptu/state", 10, &ptu_features::ptuCallback, this);
+
             myfile.open("tempGraphical.txt");
-            this->n = *_n;
             count = 0;
-            detector.hessianThreshold = 2000;
+            detector.hessianThreshold = 1000;
             ptu_start_angle = 1000; // init to number greater than 0-360
             f = 590;                // claims 525
             pointer = 0;
+            lastPtuAng = 1000;
+            someNum = -3;
+        }
+
+
+
+        void ptuCallback(const sensor_msgs::JointState::ConstPtr &msg)
+        {
+
+            for (int i = 0;i<msg->name.size();i++)
+            {
+               // std::cout << lastPtuAng << "\t" << msg->position[i] << "\t" << std::endl;
+
+                if (msg->name[i] == "pan") ptuAng = msg->position[i];
+                if (this->lastPtuAng == ptuAng) catch_ptu = true; else catch_ptu = false;
+
+            }
+            lastPtuAng = ptuAng;
+            moveCam();
+        }
+
+
+        void moveCam()
+        {
+            if(catch_ptu)
+            {
+                someNum += 0.5 ;
+                ptu.name[0] ="tilt";
+                ptu.name[1] ="pan";
+                ptu.position[0] = 0.0;
+                ptu.position[1] = someNum;
+                ptu.velocity[0] = 1.0;
+                ptu.velocity[1] = 1.0;
+                if(ptu.position[1] <= 3 && ptu.position[1] >= -3)
+                {
+                    ptu_pub.publish(ptu);
+                    std::cout << "I just published " << ptu.position[1] << std::endl;
+                }
+
+                catch_ptu = false;
+            }
+
         }
 
         void callback(const sensor_msgs::ImageConstPtr &img,  const sensor_msgs::JointStateConstPtr &ptu_state)
@@ -77,10 +133,10 @@ class ptu_features
             */
 
             extractFeatures(conversions(img), feature_sphere, ptu_angle);   // Extract
-            std::cout << count << std::endl;
+            //std::cout << count << "\t" << ptu_angle << std::endl;
 
-            //if((ceil(ptu_angle / 10) * 10) == (ceil((ptu_start_angle*-1) / 10) * 10))   // completed
-            if(count == 31)
+            //if(count == 31)
+            if((ceil(ptu_angle / 10) * 10) == (ceil((ptu_start_angle*-1) / 10) * 10))   // completed
             {
                 if(this->read_features.size() > 0)
                 {
@@ -158,6 +214,7 @@ class ptu_features
                     guessTemp.matches =0;
                     guessTemp.name = fn;
                     whereAmI.push_back(guessTemp);
+
                     std::cout << "Successfully Loaded " << this->read_features[this->read_features.size()-1].keypoints.size() << " keypoints from " << fn << std::endl;
                 }
             }
@@ -168,6 +225,7 @@ private:
         void extractFeatures(cv::Mat image, feature_struct &sphere, float angle)
         {
             //cv::Rect myROI(264, 0, 112, 480); // Crop image for
+            cv::Rect myROI(65, 0, 510, 480); // Crop image for
             //image = image(myROI);
 
             //std::cout << "sphere type: " << sphere.descriptors.type() << ".\t";
@@ -225,29 +283,52 @@ private:
                 hist[i] = 0;
                 roundHist[i] = 0;
             }
-            std::vector<std::vector <cv::DMatch> > matches;
+
+            //std::vector<std::vector <cv::DMatch> > matches;
+            std::vector<std::vector <cv::DMatch> > preProcessedMatches;
+            std::vector<cv::DMatch> matches;
+
             cv::BFMatcher matcher;
-            matcher.knnMatch( a.descriptors, b.descriptors, matches, 2);
+            matcher.knnMatch( a.descriptors, b.descriptors, preProcessedMatches, 2);
 
             int NumMatches = 0;
-            for (int i = 0; i < matches.size(); ++i)
+            for(   int i=0; i < preProcessedMatches.size(); i++)
             {
-                const float ratio = 0.15; // As in Lowe's paper;
-                if(matches[i][0].distance < ratio)
+                if (preProcessedMatches[i].size() == 2)
                 {
-                    int difAng = ceil(a.keypoints[i].pt.x - b.keypoints[matches[i][0].trainIdx].pt.x);
+                    if (preProcessedMatches[i][0].distance < preProcessedMatches[i][1].distance * DISTANCE_FACTOR)
+                    {
+                        cv::DMatch match = cv::DMatch(preProcessedMatches[i][0].queryIdx, preProcessedMatches[i][0].trainIdx, preProcessedMatches[i][0].distance);
+                        matches.push_back(match);
+                        NumMatches++;
+                    }else{
+                        cv::DMatch match = cv::DMatch(preProcessedMatches[i][0].queryIdx, -1, preProcessedMatches[i][0].distance);
+                        matches.push_back(match);
+                    }
+                }
+                else if (preProcessedMatches[i].size() == 1)
+                {
+                    cv::DMatch match = cv::DMatch(preProcessedMatches[i][0].queryIdx, preProcessedMatches[i][0].trainIdx, preProcessedMatches[i][0].distance);
+                    matches.push_back(match);
+                }else{
+                    cv::DMatch match = cv::DMatch(preProcessedMatches[i][0].queryIdx, -1, preProcessedMatches[i][0].distance);
+                    matches.push_back(match);
+                }
+
+                if(std::max(a.keypoints[i].pt.y, b.keypoints[matches[i].trainIdx].pt.y)
+                        - std::max(a.keypoints[i].pt.y, b.keypoints[matches[i].trainIdx].pt.y) < 5)
+                {
+                    // NORMAL CODE
+                    int difAng = ceil(a.keypoints[i].pt.x - b.keypoints[matches[i].trainIdx].pt.x);
                     if(difAng < 0)
                         difAng = 360 + difAng;
                     NumMatches++;
                     //hist[difAng]++;
-                    hist[difAng] += 1- matches[i][0].distance;
-                    if(std::max(a.keypoints[i].pt.y, b.keypoints[matches[i][0].trainIdx].pt.y)
-                            - std::max(a.keypoints[i].pt.y, b.keypoints[matches[i][0].trainIdx].pt.y) < 5)
-                    {
-
-                    }
+                    hist[difAng] += 1- matches[i].distance;
                 }
             }
+
+
             int bestPointer = 0;
             int angle = 0;
             std::cout << std::endl;
@@ -269,16 +350,17 @@ private:
                // std::cout << hist[i] << "\t" << roundHist[i] << std::endl;
             }
             //std::cout << std::endl;
-            //std::cout << "Estimation: " << angle << " degrees, (" << NumMatches << ") Matches" << std::endl;
+            std::cout << "Estimation for: " << whereAmI[pointer].name << " " << angle << " degrees, (" << bestPointer << ") Matches" << std::endl;
 
             whereAmI[this->pointer].angle = angle;
             whereAmI[this->pointer].matches = NumMatches;
+
         }
 
 protected:
         ros::NodeHandle n;
         int count;
-        int pointer;
+        unsigned int pointer;
         float f;
         cv::SurfFeatureDetector detector;
         cv::SurfDescriptorExtractor extractor;
@@ -290,11 +372,23 @@ protected:
         std::vector<estimation> whereAmI;
 
         std::ofstream myfile;
+
+        // new
+        ros::Publisher  ptu_pub;
+        ros::Subscriber ptu_sub;
+        sensor_msgs::JointState ptu;
+
+        float lastPtuAng, ptuAng;
+        float someNum;
 };
+
+
 
 int main(int argc, char **argv)
 {
     ros::init(argc, argv, "Surf");
+
+
 
     ros::NodeHandle n;
     ptu_features camClass(&n);
@@ -303,8 +397,6 @@ int main(int argc, char **argv)
     if(argc > 1)
        camClass.read(argv[1], false);
         //camClass.outputFileName = argv[1];
-
-
 
     message_filters::Subscriber<sensor_msgs::Image> image_sub(n, "/ptu_sweep/rgb/image_color", 1);
     //message_filters::Subscriber<sensor_msgs::Image> image_sub(n, "/head_xtion/rgb/image_color", 1);
